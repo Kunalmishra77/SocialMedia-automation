@@ -88,6 +88,41 @@ export async function listWorkspaces(search?: string): Promise<WorkspaceRow[]> {
   })
 }
 
+export interface FeatureFlag {
+  id: string
+  key: string
+  description: string | null
+  default_on: boolean
+  rollout_pct: number
+}
+
+export async function listFeatureFlags(): Promise<FeatureFlag[]> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('feature_flags')
+    .select('id, key, description, default_on, rollout_pct')
+    .order('key')
+  return (data ?? []) as FeatureFlag[]
+}
+
+export interface PlatformAdminRow {
+  id: string
+  email: string
+  role: string
+  is_active: boolean
+  totp_enabled: boolean
+  last_login_at: string | null
+}
+
+export async function listPlatformAdmins(): Promise<PlatformAdminRow[]> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('platform_admins')
+    .select('id, email, role, is_active, totp_enabled, last_login_at')
+    .order('created_at')
+  return (data ?? []) as PlatformAdminRow[]
+}
+
 export interface AuditEntry {
   id: string
   admin_email: string

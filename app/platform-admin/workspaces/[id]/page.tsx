@@ -7,6 +7,7 @@ import {
   activateWorkspaceAction,
   changePlanAction,
 } from '@/lib/actions/platform-admin'
+import { startImpersonationAction } from '@/lib/actions/impersonation'
 
 const PLANS = ['free', 'starter', 'pro', 'enterprise']
 
@@ -22,6 +23,8 @@ export default async function WorkspaceDetailPage({
 
   const manageWs = can(ctx, 'manage_workspaces')
   const manageBilling = can(ctx, 'manage_billing') || manageWs
+  const canImpersonate = can(ctx, 'impersonate')
+  const canImpersonateFull = can(ctx, 'impersonate_full')
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -116,6 +119,41 @@ export default async function WorkspaceDetailPage({
                 </form>
               ))}
           </div>
+        </div>
+      )}
+
+      {/* Impersonation */}
+      {canImpersonate && (
+        <div className="rounded-lg border border-red-900/40 bg-red-950/20 p-5">
+          <h2 className="mb-1 text-sm font-semibold text-red-300">Impersonate (login as)</h2>
+          <p className="mb-4 text-xs text-zinc-500">
+            View and act inside this workspace for support. Time-limited (30 min) and audit-logged.
+          </p>
+          <form action={startImpersonationAction} className="flex flex-wrap items-end gap-2">
+            <input type="hidden" name="workspaceId" value={ws.id} />
+            <div>
+              <label className="mb-1 block text-xs text-zinc-400">Mode</label>
+              <select
+                name="mode"
+                defaultValue="read"
+                className="h-10 rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100"
+              >
+                <option value="read">Read only</option>
+                {canImpersonateFull && <option value="full">Full access</option>}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-xs text-zinc-400">Reason</label>
+              <input
+                name="reason"
+                placeholder="e.g. debugging support ticket #123"
+                className="h-10 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 placeholder:text-zinc-600"
+              />
+            </div>
+            <button className="h-10 rounded-md bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-500">
+              Start
+            </button>
+          </form>
         </div>
       )}
     </div>
