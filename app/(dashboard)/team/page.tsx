@@ -3,6 +3,7 @@ import { requireUser, getActiveMembership, roleCan } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { updateMemberRoleAction, removeMemberAction } from '@/lib/actions/workspace'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { AutoSubmitSelect } from '@/components/ui/auto-submit-select'
 import { InviteForm } from './invite-form'
 
 export default async function TeamPage() {
@@ -65,16 +66,16 @@ export default async function TeamPage() {
                       <form action={updateMemberRoleAction}>
                         <input type="hidden" name="workspaceId" value={active.workspaceId} />
                         <input type="hidden" name="memberId" value={m.id} />
-                        <select
+                        <AutoSubmitSelect
                           name="role"
                           defaultValue={m.role}
-                          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+                          options={[
+                            { value: 'agent', label: 'Agent' },
+                            { value: 'manager', label: 'Manager' },
+                            { value: 'admin', label: 'Admin' },
+                          ]}
                           className="h-8 rounded-md border border-input bg-background px-2 text-sm capitalize"
-                        >
-                          <option value="agent">Agent</option>
-                          <option value="manager">Manager</option>
-                          <option value="admin">Admin</option>
-                        </select>
+                        />
                       </form>
                       <form action={removeMemberAction}>
                         <input type="hidden" name="workspaceId" value={active.workspaceId} />
