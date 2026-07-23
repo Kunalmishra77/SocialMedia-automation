@@ -16,7 +16,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { MembershipRole } from '@/lib/authz'
+import type { MembershipRole, WorkspaceMembership } from '@/lib/authz'
+import { switchWorkspaceAction } from '@/lib/actions/workspace'
 
 interface NavItem {
   label: string
@@ -43,13 +44,18 @@ export function Sidebar({
   workspaceName,
   plan,
   role,
+  memberships = [],
+  activeWorkspaceId,
 }: {
   workspaceName: string
   plan: string
   role: MembershipRole
+  memberships?: WorkspaceMembership[]
+  activeWorkspaceId?: string
 }) {
   const pathname = usePathname()
   const items = role === 'agent' ? NAV.filter((i) => i.agentVisible) : NAV
+  const canSwitch = memberships.length > 1
 
   return (
     <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-border bg-card">
@@ -58,8 +64,27 @@ export function Sidebar({
       </div>
 
       <div className="border-b border-border px-4 py-3">
-        <p className="truncate text-sm font-semibold">{workspaceName}</p>
-        <p className="text-xs capitalize text-muted-foreground">{plan} plan · {role.replace('_', ' ')}</p>
+        {canSwitch ? (
+          <form action={switchWorkspaceAction}>
+            <select
+              name="workspaceId"
+              defaultValue={activeWorkspaceId}
+              onChange={(e) => e.currentTarget.form?.requestSubmit()}
+              className="w-full truncate rounded-md border border-border bg-background px-2 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {memberships.map((m) => (
+                <option key={m.workspaceId} value={m.workspaceId}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </form>
+        ) : (
+          <p className="truncate text-sm font-semibold">{workspaceName}</p>
+        )}
+        <p className="mt-1 text-xs capitalize text-muted-foreground">
+          {plan} plan · {role.replace('_', ' ')}
+        </p>
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-2">

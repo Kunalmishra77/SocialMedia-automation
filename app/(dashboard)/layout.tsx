@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireUser, getMemberships, type WorkspaceMembership } from '@/lib/authz'
+import { requireUser, getActiveMembership, type WorkspaceMembership } from '@/lib/authz'
 import { getImpersonation } from '@/lib/impersonation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Topbar } from '@/components/dashboard/topbar'
@@ -12,19 +12,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const impersonation = await getImpersonation(user.id)
 
   let active: WorkspaceMembership
+  let all: WorkspaceMembership[] = []
   if (impersonation) {
     active = {
       workspaceId: impersonation.workspaceId,
       name: impersonation.workspaceName,
       slug: '',
       plan: impersonation.plan,
-      // Full-access impersonation acts as super_admin; read-only maps to a viewer (agent-like).
       role: impersonation.mode === 'full' ? 'super_admin' : 'agent',
     }
   } else {
-    const memberships = await getMemberships(user.id)
-    if (memberships.length === 0) redirect('/workspace/new')
-    active = memberships[0]
+    const resolved = await getActiveMembership(user.id)
+    if (!resolved.active) redirect('/workspace/new')
+    active = resolved.active
+    all = resolved.all
   }
 
   return (
@@ -33,7 +34,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <ImpersonationBanner workspaceName={impersonation.workspaceName} mode={impersonation.mode} />
       )}
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar workspaceName={active.name} plan={active.plan} role={active.role} />
+        <Sidebar
+          workspaceName={active.name}
+          plan={active.plan}
+          role={active.role}
+          memberships={impersonation ? [] : all}
+          activeWorkspaceId={active.workspaceId}
+        />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Topbar email={user.email ?? ''} />
           <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
