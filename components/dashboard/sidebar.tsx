@@ -11,6 +11,7 @@ import {
   CalendarDays,
   Workflow,
   BarChart3,
+  BookOpen,
   UserCog,
   Settings,
   type LucideIcon,
@@ -36,6 +37,7 @@ const NAV: NavItem[] = [
   { label: 'Content', href: '/content', icon: CalendarDays },
   { label: 'Automation', href: '/automation/flows', icon: Workflow },
   { label: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { label: 'Knowledge', href: '/knowledge-base', icon: BookOpen },
   { label: 'Team', href: '/team', icon: UserCog },
   { label: 'Settings', href: '/settings', icon: Settings },
 ]
