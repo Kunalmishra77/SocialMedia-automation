@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { requirePlatformAdmin } from '@/lib/platform-admin/auth'
 import { listWorkspaces } from '@/lib/platform-admin/metrics'
+import { CreateClient } from './create-client'
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -26,9 +27,12 @@ export default async function WorkspacesListPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold">Workspaces</h1>
-        <p className="text-sm text-zinc-400">{workspaces.length} shown</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Workspaces</h1>
+          <p className="text-sm text-zinc-400">{workspaces.length} shown</p>
+        </div>
+        <CreateClient />
       </div>
 
       <form className="flex gap-2">

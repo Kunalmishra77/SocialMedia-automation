@@ -74,10 +74,19 @@ export default async function ChannelsPage() {
                 ) : item.channel === 'telegram' ? (
                   <ConnectTelegram />
                 ) : item.status === 'oauth' ? (
-                  <p className="text-xs text-muted-foreground">
-                    Configure a Meta developer app (App ID/secret + webhook) on your live domain to enable
-                    OAuth connect.
-                  </p>
+                  process.env.META_APP_ID ? (
+                    <a
+                      href="/api/integrations/instagram/connect"
+                      className="inline-block rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+                    >
+                      Connect with Meta
+                    </a>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Set META_APP_ID / META_APP_SECRET / META_VERIFY_TOKEN on your live domain to enable
+                      OAuth connect.
+                    </p>
+                  )
                 ) : (
                   <p className="text-xs text-muted-foreground">Coming soon.</p>
                 )}
