@@ -40,6 +40,18 @@ export default async function SettingsPage() {
           />
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Channels</CardTitle>
+          <CardDescription>Connect Instagram, Telegram and more.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <a href="/settings/channels" className="text-sm font-medium text-primary hover:underline">
+            Manage channels →
+          </a>
+        </CardContent>
+      </Card>
     </div>
   )
 }

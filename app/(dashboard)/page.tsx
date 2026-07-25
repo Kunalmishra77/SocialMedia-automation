@@ -59,13 +59,12 @@ export default async function DashboardHome() {
               </div>
             </div>
           </div>
-          <button
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground opacity-60"
-            disabled
-            title="Coming in the next step"
+          <a
+            href="/settings/channels"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
-            Connect (coming soon)
-          </button>
+            Connect a channel
+          </a>
         </div>
       </Card>
 
