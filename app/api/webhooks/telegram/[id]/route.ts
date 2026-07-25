@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendTelegramMessage } from '@/lib/channels/telegram'
+import { getAIReply } from '@/lib/ai/reply'
+import { aiConfigured } from '@/lib/ai/client'
 
 /**
  * Telegram webhook. One endpoint per connected bot (channel_account id in the path).
@@ -12,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: account } = await admin
     .from('channel_accounts')
-    .select('id, workspace_id, webhook_secret, is_active')
+    .select('id, workspace_id, webhook_secret, is_active, access_token')
     .eq('id', channelAccountId)
     .eq('channel', 'telegram')
     .maybeSingle()
@@ -93,7 +96,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // Insert the inbound message (dedup on ig_message_id).
-  await admin.from('messages').insert({
+  const { error: insErr } = await admin.from('messages').insert({
     conversation_id: conversationId,
     workspace_id: workspaceId,
     sender_type: 'contact',
@@ -104,6 +107,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     status: 'delivered',
     metadata: { telegram_chat_id: chatId },
   })
+  // Duplicate delivery (same ig_message_id) — stop to avoid double auto-reply.
+  if (insErr) return NextResponse.json({ ok: true })
+
+  // AI auto-reply (if configured + enabled + bot not paused).
+  if (text && aiConfigured() && account.access_token) {
+    const [{ data: ws }, { data: conv }] = await Promise.all([
+      admin.from('workspaces').select('settings').eq('id', workspaceId).maybeSingle(),
+      admin.from('conversations').select('bot_paused').eq('id', conversationId).maybeSingle(),
+    ])
+    const autoReply = (ws?.settings as { auto_reply_enabled?: boolean } | null)?.auto_reply_enabled
+    if (autoReply && !conv?.bot_paused) {
+      const reply = await getAIReply(admin, workspaceId, conversationId, text)
+      if (reply) {
+        const sent = await sendTelegramMessage(account.access_token, chatId, reply)
+        if (sent.ok) {
+          await admin.from('messages').insert({
+            conversation_id: conversationId,
+            workspace_id: workspaceId,
+            sender_type: 'bot',
+            direction: 'outbound',
+            type: 'text',
+            content: reply,
+            status: 'sent',
+            metadata: { telegram_chat_id: chatId, ai: true },
+          })
+        }
+      }
+    }
+  }
 
   return NextResponse.json({ ok: true })
 }

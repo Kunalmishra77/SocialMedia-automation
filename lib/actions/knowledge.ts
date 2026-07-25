@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership, roleCan } from '@/lib/authz'
+import { generateEmbedding } from '@/lib/ai/client'
 
 async function requireManageKb(): Promise<string> {
   const user = await getUser()
@@ -23,15 +24,21 @@ export async function createKbEntryAction(formData: FormData): Promise<{ error?:
   if (!title || !content) return { error: 'Title and content are required' }
 
   const admin = createAdminClient()
-  await admin.from('knowledge_base').insert({
-    workspace_id: workspaceId,
-    title,
-    content,
-    category,
-    source: 'manual',
-    is_active: true,
-  })
-  // Embedding generation happens when OPENAI_API_KEY is configured (wired with AI engine).
+  const { data: entry } = await admin
+    .from('knowledge_base')
+    .insert({ workspace_id: workspaceId, title, content, category, source: 'manual', is_active: true })
+    .select('id')
+    .single()
+
+  // Generate + store embedding when an OpenAI key is configured (enables semantic search).
+  if (entry) {
+    const embedding = await generateEmbedding(`${title}\n${content}`)
+    if (embedding) {
+      // pgvector expects the literal '[v1,v2,...]' text form.
+      await admin.from('knowledge_base').update({ embedding: `[${embedding.join(',')}]` }).eq('id', entry.id)
+    }
+  }
+
   revalidatePath('/knowledge-base')
   return {}
 }
