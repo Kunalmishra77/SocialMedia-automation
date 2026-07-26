@@ -12,6 +12,15 @@ export default async function ApprovalsPage() {
     .eq('status', 'pending_approval')
     .order('submitted_at', { ascending: true })
 
+  // Recently activated (so admins can retrieve/share credentials if email isn't wired).
+  const { data: recent } = await admin
+    .from('workspaces')
+    .select('id, name, onboarding_data, approved_at')
+    .eq('status', 'active')
+    .not('approved_at', 'is', null)
+    .order('approved_at', { ascending: false })
+    .limit(5)
+
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <div>
@@ -63,6 +72,29 @@ export default async function ApprovalsPage() {
           )
         })}
       </div>
+
+      {recent && recent.some((r) => (r.onboarding_data as { approved_credentials?: unknown } | null)?.approved_credentials) && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-zinc-400">Recently activated — credentials</h2>
+          {recent.map((r) => {
+            const c = (r.onboarding_data as { approved_credentials?: { email: string; password: string; loginUrl: string } } | null)?.approved_credentials
+            if (!c) return null
+            return (
+              <div key={r.id} className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm">
+                <p className="mb-2 font-medium">{r.name}</p>
+                <div className="grid gap-1 font-mono text-xs text-zinc-300">
+                  <span>Login: {c.loginUrl}</span>
+                  <span>Email: {c.email}</span>
+                  <span>Password: {c.password}</span>
+                </div>
+                <p className="mt-2 text-xs text-zinc-500">
+                  {process.env.RESEND_API_KEY ? 'Emailed to the client.' : 'Set RESEND_API_KEY to auto-email these. Share manually for now.'}
+                </p>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
