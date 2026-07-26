@@ -32,7 +32,18 @@ function resolveProvider(): { url: string; key: string; defaultModel: string; he
   return null
 }
 
-/** Chat completion. Returns the assistant text, or null if unavailable/failed. */
+/** OpenRouter free-tier fallbacks tried in order when the primary model fails. */
+const OPENROUTER_FALLBACKS = [
+  'openai/gpt-4o-mini',
+  'google/gemini-2.0-flash-exp:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'google/gemma-2-9b-it:free',
+]
+
+/**
+ * Chat completion with multi-model fallback (AI router). Tries the primary
+ * model, then provider fallbacks, until one responds. Returns null if all fail.
+ */
 export async function callAI(
   messages: ChatMessage[],
   opts: { model?: string; maxTokens?: number; temperature?: number } = {},
@@ -40,27 +51,36 @@ export async function callAI(
   const provider = resolveProvider()
   if (!provider) return null
 
-  try {
-    const res = await fetch(provider.url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${provider.key}`,
-        ...provider.headers,
-      },
-      body: JSON.stringify({
-        model: opts.model ?? provider.defaultModel,
-        messages,
-        max_tokens: opts.maxTokens ?? 400,
-        temperature: opts.temperature ?? 0.6,
-      }),
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    return data.choices?.[0]?.message?.content?.trim() ?? null
-  } catch {
-    return null
+  const isOpenRouter = provider.url.includes('openrouter')
+  const models = [opts.model ?? provider.defaultModel, ...(isOpenRouter ? OPENROUTER_FALLBACKS : [])].filter(
+    (m, i, a) => m && a.indexOf(m) === i,
+  ) as string[]
+
+  for (const model of models) {
+    try {
+      const res = await fetch(provider.url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${provider.key}`,
+          ...provider.headers,
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          max_tokens: opts.maxTokens ?? 400,
+          temperature: opts.temperature ?? 0.6,
+        }),
+      })
+      if (!res.ok) continue
+      const data = await res.json()
+      const content = data.choices?.[0]?.message?.content?.trim()
+      if (content) return content
+    } catch {
+      /* try next model */
+    }
   }
+  return null
 }
 
 /** Generate a 1536-dim embedding for text (OpenAI only), or null. */
