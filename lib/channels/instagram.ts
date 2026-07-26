@@ -1,117 +1,226 @@
 import 'server-only'
 
-const GRAPH = 'https://graph.facebook.com/v21.0'
+// Instagram Business Login API (graph.instagram.com) — richer than the Facebook-login
+// Graph API: supports follow-status (is_user_follow_business), comment likes,
+// private replies and postback buttons. Multi-tenant: every call takes the
+// per-workspace access token.
+const IG = 'https://graph.instagram.com/v24.0'
 
 export const IG_SCOPES = [
-  'instagram_basic',
-  'instagram_manage_messages',
-  'instagram_manage_comments',
-  'pages_show_list',
-  'pages_manage_metadata',
-  'business_management',
+  'instagram_business_basic',
+  'instagram_business_manage_messages',
+  'instagram_business_manage_comments',
+  'instagram_business_content_publish',
 ].join(',')
 
 export const IG_CAPS = {
   dm: true, dmAutoReply: true, commentToDm: true, commentReply: true,
-  commentLike: true, postScheduling: true, broadcast: true, webhookInbound: true,
-  messagingWindow: 24,
+  commentLike: true, followGate: true, postScheduling: true, broadcast: true,
+  webhookInbound: true, messagingWindow: 24,
 }
 
-/** Exchange an OAuth code for a short-lived token. */
-export async function exchangeCode(code: string, redirectUri: string): Promise<string | null> {
-  const params = new URLSearchParams({
-    client_id: process.env.META_APP_ID ?? '',
-    client_secret: process.env.META_APP_SECRET ?? '',
-    redirect_uri: redirectUri,
-    code,
-  })
-  try {
-    const res = await fetch(`${GRAPH}/oauth/access_token?${params.toString()}`)
-    const data = await res.json()
-    return data.access_token ?? null
-  } catch {
-    return null
-  }
+export interface InstagramProfile {
+  name: string | null
+  username: string | null
+  profile_pic: string | null
+  follower_count: number | null
+  is_user_follow_business: boolean | null
+  is_business_follow_user: boolean | null
 }
 
-/** Upgrade a short-lived token to a long-lived (60-day) token. */
-export async function longLivedToken(shortToken: string): Promise<{ token: string; expiresIn: number } | null> {
-  const params = new URLSearchParams({
-    grant_type: 'fb_exchange_token',
-    client_id: process.env.META_APP_ID ?? '',
-    client_secret: process.env.META_APP_SECRET ?? '',
-    fb_exchange_token: shortToken,
-  })
+/** Fetch a user's IG profile incl. whether they follow the business (follow-gate). */
+export async function fetchInstagramProfile(igsid: string, token: string): Promise<InstagramProfile> {
+  const url = new URL(`${IG}/${igsid}`)
+  url.searchParams.set(
+    'fields',
+    'name,username,profile_pic,follower_count,is_user_follow_business,is_business_follow_user',
+  )
+  url.searchParams.set('access_token', token)
   try {
-    const res = await fetch(`${GRAPH}/oauth/access_token?${params.toString()}`)
-    const data = await res.json()
-    if (!data.access_token) return null
-    return { token: data.access_token, expiresIn: data.expires_in ?? 5_184_000 }
-  } catch {
-    return null
-  }
-}
-
-/** List the user's pages and their connected IG business accounts. */
-export async function getPagesWithIg(token: string): Promise<
-  { pageId: string; pageToken: string; igId: string; igUsername: string; name: string }[]
-> {
-  const out: { pageId: string; pageToken: string; igId: string; igUsername: string; name: string }[] = []
-  try {
-    const res = await fetch(`${GRAPH}/me/accounts?fields=id,name,access_token&access_token=${token}`)
-    const data = await res.json()
-    for (const page of data.data ?? []) {
-      const igRes = await fetch(
-        `${GRAPH}/${page.id}?fields=instagram_business_account{id,username}&access_token=${page.access_token}`,
-      )
-      const igData = await igRes.json()
-      const iba = igData.instagram_business_account
-      if (iba) {
-        out.push({ pageId: page.id, pageToken: page.access_token, igId: iba.id, igUsername: iba.username, name: page.name })
-      }
+    const res = await fetch(url.toString())
+    if (!res.ok) return blankProfile()
+    const d = await res.json()
+    return {
+      name: d.name ?? null,
+      username: d.username ?? null,
+      profile_pic: d.profile_pic ?? null,
+      follower_count: d.follower_count ?? null,
+      is_user_follow_business: d.is_user_follow_business ?? null,
+      is_business_follow_user: d.is_business_follow_user ?? null,
     }
   } catch {
-    /* ignore */
+    return blankProfile()
   }
-  return out
+}
+function blankProfile(): InstagramProfile {
+  return { name: null, username: null, profile_pic: null, follower_count: null, is_user_follow_business: null, is_business_follow_user: null }
 }
 
-/** Subscribe the page to webhook fields. */
-export async function subscribePageWebhooks(pageId: string, pageToken: string): Promise<void> {
+/** Send a plain DM. */
+export async function sendInstagramDM(token: string, recipientIgsid: string, text: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    await fetch(`${GRAPH}/${pageId}/subscribed_apps`, {
+    const res = await fetch(`${IG}/me/messages?access_token=${token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        subscribed_fields: 'messages,messaging_postbacks,comments,mentions,message_reactions',
-        access_token: pageToken,
-      }),
+      body: JSON.stringify({ recipient: { id: recipientIgsid }, message: { text } }),
     })
-  } catch {
-    /* ignore */
+    if (!res.ok) return { ok: false, error: (await res.json())?.error?.message }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: String(e) }
   }
 }
 
-/** Send a DM to an IG user via the page token. */
-export async function sendInstagramDM(
-  pageToken: string,
+/** Send a DM with postback buttons (used for the follow-gate "I've Followed" flow). */
+export async function sendInstagramButtons(
+  token: string,
   recipientIgsid: string,
   text: string,
-): Promise<{ ok: boolean; error?: string }> {
+  buttons: { title: string; payload: string }[],
+): Promise<boolean> {
   try {
-    const res = await fetch(`${GRAPH}/me/messages`, {
+    const res = await fetch(`${IG}/me/messages?access_token=${token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         recipient: { id: recipientIgsid },
-        message: { text },
-        access_token: pageToken,
+        message: {
+          attachment: {
+            type: 'template',
+            payload: {
+              template_type: 'generic',
+              elements: [{
+                title: 'Follow to continue',
+                subtitle: text,
+                buttons: buttons.map((b) => ({ type: 'postback', title: b.title, payload: b.payload })),
+              }],
+            },
+          },
+        },
       }),
     })
-    const data = await res.json()
-    if (data.error) return { ok: false, error: data.error.message }
-    return { ok: true }
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+/** Public reply on a comment. */
+export async function replyToComment(token: string, commentId: string, text: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${IG}/${commentId}/replies?access_token=${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text }),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+/** Private reply to a commenter (comment → DM). Falls back to /me/messages. */
+export async function sendPrivateReply(token: string, commentId: string, text: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${IG}/${commentId}/private_replies?access_token=${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text }),
+    })
+    if (res.ok) return true
+    const res2 = await fetch(`${IG}/me/messages?access_token=${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipient: { comment_id: commentId }, message: { text } }),
+    })
+    return res2.ok
+  } catch {
+    return false
+  }
+}
+
+/** Like a comment as the business (graph.instagram.com, graph.facebook.com fallback). */
+export async function likeComment(token: string, businessId: string, commentId: string): Promise<boolean> {
+  try {
+    const a = await fetch(`${IG}/${businessId}/likes?comment_id=${commentId}&access_token=${token}`, { method: 'POST' })
+    if (a.ok) return true
+    const b = await fetch(
+      `https://graph.facebook.com/v24.0/${businessId}/likes?comment_id=${commentId}&access_token=${token}`,
+      { method: 'POST' },
+    )
+    return b.ok
+  } catch {
+    return false
+  }
+}
+
+/** Publish an image post (Content Publishing API). */
+export async function publishImage(token: string, igUserId: string, imageUrl: string, caption: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+  try {
+    const create = await fetch(`${IG}/${igUserId}/media?access_token=${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_url: imageUrl, caption }),
+    })
+    const cd = await create.json()
+    if (!cd.id) return { ok: false, error: cd.error?.message }
+    const pub = await fetch(`${IG}/${igUserId}/media_publish?access_token=${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ creation_id: cd.id }),
+    })
+    const pd = await pub.json()
+    return pd.id ? { ok: true, id: pd.id } : { ok: false, error: pd.error?.message }
   } catch (e) {
     return { ok: false, error: String(e) }
+  }
+}
+
+// ---------- OAuth (Instagram Business Login) ----------
+
+export function instagramAuthUrl(redirectUri: string, state: string): string {
+  const p = new URLSearchParams({
+    client_id: process.env.INSTAGRAM_APP_ID ?? '',
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: IG_SCOPES,
+    state,
+  })
+  return `https://www.instagram.com/oauth/authorize?${p.toString()}`
+}
+
+export async function exchangeIgCode(code: string, redirectUri: string): Promise<{ token: string; userId: string } | null> {
+  try {
+    const res = await fetch('https://api.instagram.com/oauth/access_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.INSTAGRAM_APP_ID ?? '',
+        client_secret: process.env.INSTAGRAM_APP_SECRET ?? '',
+        grant_type: 'authorization_code',
+        redirect_uri: redirectUri,
+        code,
+      }),
+    })
+    const d = await res.json()
+    if (!d.access_token) return null
+    return { token: d.access_token, userId: String(d.user_id) }
+  } catch {
+    return null
+  }
+}
+
+export async function igLongLivedToken(shortToken: string): Promise<{ token: string; expiresIn: number } | null> {
+  try {
+    const url = new URL(`${IG.replace('/v24.0', '')}/access_token`)
+    url.searchParams.set('grant_type', 'ig_exchange_token')
+    url.searchParams.set('client_secret', process.env.INSTAGRAM_APP_SECRET ?? '')
+    url.searchParams.set('access_token', shortToken)
+    const res = await fetch(url.toString())
+    const d = await res.json()
+    if (!d.access_token) return null
+    return { token: d.access_token, expiresIn: d.expires_in ?? 5_184_000 }
+  } catch {
+    return null
   }
 }

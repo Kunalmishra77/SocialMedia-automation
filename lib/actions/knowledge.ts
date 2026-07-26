@@ -65,10 +65,20 @@ export async function updateAiSettingsAction(formData: FormData): Promise<{ ok?:
   const workspaceId = await requireManageKb()
   const persona = String(formData.get('agent_persona') ?? '').trim()
   const autoReply = formData.get('auto_reply') === 'on'
+  const followGate = formData.get('follow_gate') === 'on'
+  const autoLike = formData.get('auto_like') === 'on'
+  const followGateMsg = String(formData.get('follow_gate_message') ?? '').trim()
 
   const admin = createAdminClient()
   const { data: ws } = await admin.from('workspaces').select('settings').eq('id', workspaceId).single()
-  const settings = { ...(ws?.settings ?? {}), agent_persona: persona, auto_reply_enabled: autoReply }
+  const settings = {
+    ...(ws?.settings ?? {}),
+    agent_persona: persona,
+    auto_reply_enabled: autoReply,
+    follow_gate_enabled: followGate,
+    auto_like_comments: autoLike,
+    follow_gate_message: followGateMsg || undefined,
+  }
   await admin.from('workspaces').update({ settings }).eq('id', workspaceId)
   revalidatePath('/knowledge-base')
   return { ok: true }

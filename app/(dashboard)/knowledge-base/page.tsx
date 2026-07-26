@@ -22,7 +22,13 @@ export default async function KnowledgeBasePage() {
     admin.from('workspaces').select('settings').eq('id', active.workspaceId).single(),
   ])
 
-  const settings = (ws?.settings ?? {}) as { agent_persona?: string; auto_reply_enabled?: boolean }
+  const settings = (ws?.settings ?? {}) as {
+    agent_persona?: string
+    auto_reply_enabled?: boolean
+    follow_gate_enabled?: boolean
+    auto_like_comments?: boolean
+    follow_gate_message?: string
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -42,6 +48,9 @@ export default async function KnowledgeBasePage() {
           <AiSettings
             persona={settings.agent_persona ?? ''}
             autoReply={settings.auto_reply_enabled ?? false}
+            followGate={settings.follow_gate_enabled ?? true}
+            autoLike={settings.auto_like_comments ?? true}
+            followGateMessage={settings.follow_gate_message ?? ''}
           />
         </CardContent>
       </Card>
