@@ -7,6 +7,7 @@ import {
 } from '@/lib/channels/instagram'
 import { getAIReply } from '@/lib/ai/reply'
 import { callAI, aiConfigured } from '@/lib/ai/client'
+import { applyInboxRules } from '@/lib/inbox-rules'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -132,6 +133,14 @@ export async function POST(req: NextRequest) {
         await sendInstagramButtons(token, igsid, settings.followGateMsg, [{ title: "I've Followed", payload: 'VERIFY_FOLLOW' }])
         await admin.from('conversations').update({ follow_gate_pending: true }).eq('id', convId)
         await saveMsg(admin, convId, workspaceId, 'system', 'outbound', '[Follow-gate sent — AI paused until follow]')
+        continue
+      }
+
+      // Inbox rules (keyword auto-reply / label / assign) run before AI
+      const ruled = await applyInboxRules(admin, workspaceId, convId, text)
+      if (ruled.autoReply) {
+        const sent = await sendInstagramDM(token, igsid, ruled.autoReply)
+        if (sent.ok) await saveMsg(admin, convId, workspaceId, 'bot', 'outbound', ruled.autoReply)
         continue
       }
 

@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendTelegramMessage } from '@/lib/channels/telegram'
 import { getAIReply } from '@/lib/ai/reply'
 import { aiConfigured } from '@/lib/ai/client'
+import { applyInboxRules } from '@/lib/inbox-rules'
 
 /**
  * Telegram webhook. One endpoint per connected bot (channel_account id in the path).
@@ -109,6 +110,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   })
   // Duplicate delivery (same ig_message_id) — stop to avoid double auto-reply.
   if (insErr) return NextResponse.json({ ok: true })
+
+  // Inbox rules (keyword auto-reply / label / assign) run before AI.
+  if (text && account.access_token) {
+    const ruled = await applyInboxRules(admin, workspaceId, conversationId, text)
+    if (ruled.autoReply) {
+      const sent = await sendTelegramMessage(account.access_token, chatId, ruled.autoReply)
+      if (sent.ok) {
+        await admin.from('messages').insert({
+          conversation_id: conversationId, workspace_id: workspaceId, sender_type: 'bot',
+          direction: 'outbound', type: 'text', content: ruled.autoReply, status: 'sent',
+          metadata: { telegram_chat_id: chatId, rule: true },
+        })
+      }
+      return NextResponse.json({ ok: true })
+    }
+  }
 
   // AI auto-reply (if configured + enabled + bot not paused).
   if (text && aiConfigured() && account.access_token) {

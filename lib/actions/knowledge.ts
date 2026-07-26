@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership, roleCan } from '@/lib/authz'
 import { generateEmbedding } from '@/lib/ai/client'
+import { ingestDocument } from '@/lib/ai/vector'
 
 async function requireManageKb(): Promise<string> {
   const user = await getUser()
@@ -58,6 +59,19 @@ export async function toggleKbEntryAction(formData: FormData): Promise<void> {
   const admin = createAdminClient()
   await admin.from('knowledge_base').update({ is_active: isActive }).eq('id', id).eq('workspace_id', workspaceId)
   revalidatePath('/knowledge-base')
+}
+
+/** Ingest a pasted document: chunk + embed into vector_documents. */
+export async function ingestDocumentAction(formData: FormData): Promise<{ error?: string; ok?: string }> {
+  const workspaceId = await requireManageKb()
+  const filename = String(formData.get('filename') ?? '').trim() || 'document.txt'
+  const content = String(formData.get('content') ?? '').trim()
+  if (content.length < 20) return { error: 'Paste at least a paragraph of text' }
+
+  const admin = createAdminClient()
+  const { chunks, embedded } = await ingestDocument(admin, workspaceId, filename, 'txt', content)
+  revalidatePath('/knowledge-base')
+  return { ok: `Ingested ${chunks} chunks${embedded < chunks ? ` (${embedded} embedded — add an AI key for semantic search)` : ''}` }
 }
 
 /** Update workspace AI settings stored in workspaces.settings JSONB. */

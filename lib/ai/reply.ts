@@ -2,6 +2,7 @@ import 'server-only'
 
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { callAI, generateEmbedding, aiConfigured, type ChatMessage } from '@/lib/ai/client'
+import { searchDocuments } from '@/lib/ai/vector'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -45,6 +46,14 @@ export async function getAIReply(
       .order('priority', { ascending: false })
       .limit(5)
     kbContext = (entries ?? []).map((e) => `# ${e.title}\n${e.content}`).join('\n\n')
+  }
+
+  // Also pull relevant chunks from uploaded documents (vector search).
+  try {
+    const docs = await searchDocuments(admin, workspaceId, lastInboundText, 3)
+    if (docs.length) kbContext += (kbContext ? '\n\n' : '') + docs.join('\n\n')
+  } catch {
+    /* non-fatal */
   }
 
   // Recent history (last 10)

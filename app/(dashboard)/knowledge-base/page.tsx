@@ -5,6 +5,7 @@ import { deleteKbEntryAction } from '@/lib/actions/knowledge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { KbEditor } from './kb-editor'
 import { AiSettings } from './ai-settings'
+import { DocIngest } from './doc-ingest'
 
 export default async function KnowledgeBasePage() {
   const user = await requireUser()
@@ -61,7 +62,10 @@ export default async function KnowledgeBasePage() {
             <CardTitle>Knowledge entries</CardTitle>
             <CardDescription>{entries?.length ?? 0} entries</CardDescription>
           </div>
-          <KbEditor />
+          <div className="flex gap-2">
+            <DocIngest />
+            <KbEditor />
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {(!entries || entries.length === 0) && (
