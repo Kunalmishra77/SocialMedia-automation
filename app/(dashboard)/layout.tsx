@@ -1,9 +1,20 @@
 import { redirect } from 'next/navigation'
 import { requireUser, getActiveMembership, type WorkspaceMembership } from '@/lib/authz'
 import { getImpersonation } from '@/lib/impersonation'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Topbar } from '@/components/dashboard/topbar'
 import { ImpersonationBanner } from '@/components/dashboard/impersonation-banner'
+
+async function unreadCount(userId: string): Promise<number> {
+  const admin = createAdminClient()
+  const { count } = await admin
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('is_read', false)
+  return count ?? 0
+}
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser()
@@ -42,7 +53,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           activeWorkspaceId={active.workspaceId}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
-          <Topbar email={user.email ?? ''} />
+          <Topbar email={user.email ?? ''} unread={await unreadCount(user.id)} />
           <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
         </div>
       </div>
