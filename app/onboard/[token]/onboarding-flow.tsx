@@ -6,7 +6,22 @@ import {
   Check, CreditCard, Loader2, PartyPopper, ArrowRight,
 } from 'lucide-react'
 import { PLAN_CATALOG } from '@/lib/plans'
-import { submitOnboardingAction } from '@/lib/actions/onboarding'
+import { submitOnboardingAction, createPaymentOrderAction, confirmRazorpayPaymentAction } from '@/lib/actions/onboarding'
+
+declare global {
+  interface Window { Razorpay?: new (options: Record<string, unknown>) => { open: () => void } }
+}
+
+function loadRazorpay(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (window.Razorpay) return resolve(true)
+    const s = document.createElement('script')
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    s.onload = () => resolve(true)
+    s.onerror = () => resolve(false)
+    document.body.appendChild(s)
+  })
+}
 
 const FEATURES = [
   { icon: MessagesSquare, title: 'AI Inbox & Chatbot', desc: 'Auto-reply to DMs and comments with an AI trained on your business.' },
@@ -25,16 +40,58 @@ export function OnboardingFlow({
   token,
   workspaceName,
   initialStep = 'welcome',
+  razorpay = false,
 }: {
   token: string
   workspaceName: string
   initialStep?: Step
+  razorpay?: boolean
 }) {
   const [step, setStep] = useState<Step>(initialStep)
   const [plan, setPlan] = useState('pro')
   const [metaAppId, setMetaAppId] = useState('')
   const [metaAppSecret, setMetaAppSecret] = useState('')
+  const [payError, setPayError] = useState('')
+  const [rzpBusy, setRzpBusy] = useState(false)
   const selected = PLAN_CATALOG.find((p) => p.key === plan)!
+
+  async function handleRazorpay() {
+    setPayError('')
+    setRzpBusy(true)
+    try {
+      const order = await createPaymentOrderAction(token, plan)
+      if (order.demo || !order.orderId) {
+        setPayError(order.error || 'Payment unavailable, please try the demo option.')
+        setRzpBusy(false)
+        return
+      }
+      const ok = await loadRazorpay()
+      if (!ok || !window.Razorpay) { setPayError('Could not load payment.'); setRzpBusy(false); return }
+      const rzp = new window.Razorpay({
+        key: order.keyId,
+        amount: order.amount,
+        currency: 'INR',
+        name: 'Socialflow',
+        description: `${selected.name} plan`,
+        order_id: order.orderId,
+        handler: async (resp: Record<string, string>) => {
+          const fd = new FormData()
+          fd.set('token', token)
+          fd.set('plan', plan)
+          fd.set('razorpay_order_id', resp.razorpay_order_id)
+          fd.set('razorpay_payment_id', resp.razorpay_payment_id)
+          fd.set('razorpay_signature', resp.razorpay_signature)
+          const res = await confirmRazorpayPaymentAction({}, fd)
+          if (res.ok) setStep('waiting')
+          else setPayError(res.error || 'Verification failed')
+        },
+        theme: { color: '#e11d48' },
+      })
+      rzp.open()
+    } finally {
+      setRzpBusy(false)
+    }
+  }
 
   const [state, formAction, pending] = useActionState<{ error?: string; ok?: boolean }, FormData>(
     async (_prev, fd) => {
@@ -163,44 +220,51 @@ export function OnboardingFlow({
         </Card>
       )}
 
-      {/* PAYMENT (demo) */}
+      {/* PAYMENT */}
       {step === 'pay' && (
-        <Card title="Payment" subtitle="This is a demo payment — no real charge. Your request goes to admin for approval after this.">
-          <form action={formAction} className="space-y-4">
-            <input type="hidden" name="token" value={token} />
-            <input type="hidden" name="plan" value={plan} />
-            <input type="hidden" name="meta_app_id" value={metaAppId} />
-            <input type="hidden" name="meta_app_secret" value={metaAppSecret} />
-
-            <div className="rounded-xl border border-border bg-muted/30 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">{selected.name} plan</span>
-                <span className="text-2xl font-bold">₹{selected.price.toLocaleString('en-IN')}<span className="text-sm font-normal text-muted-foreground">/mo</span></span>
-              </div>
+        <Card title="Payment" subtitle={razorpay ? 'Secure payment via Razorpay. Your request goes to admin for approval after payment.' : 'Demo payment — no real charge. Your request goes to admin for approval after this.'}>
+          <div className="mb-4 rounded-xl border border-border bg-muted/30 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">{selected.name} plan</span>
+              <span className="text-2xl font-bold">₹{selected.price.toLocaleString('en-IN')}<span className="text-sm font-normal text-muted-foreground">/mo</span></span>
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 rounded-md border border-input bg-background px-3">
-                <CreditCard className="h-4 w-4 text-muted-foreground" />
-                <input defaultValue="4242 4242 4242 4242" className="h-11 flex-1 bg-transparent text-sm outline-none" />
-              </div>
-              <div className="flex gap-2">
-                <input defaultValue="12/28" className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-sm" />
-                <input defaultValue="123" className="h-11 w-24 rounded-md border border-input bg-background px-3 text-sm" />
-              </div>
+          {razorpay ? (
+            <div className="space-y-3">
+              {payError && <p className="text-sm text-destructive">{payError}</p>}
+              <button
+                onClick={handleRazorpay}
+                disabled={rzpBusy}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground shadow-[var(--shadow-md)] transition hover:brightness-110 disabled:opacity-60"
+              >
+                {rzpBusy ? <><Loader2 className="h-4 w-4 animate-spin" /> Opening…</> : <><CreditCard className="h-4 w-4" /> Pay ₹{selected.price.toLocaleString('en-IN')} securely</>}
+              </button>
+              <button type="button" onClick={() => setStep('plan')} className="w-full text-sm text-muted-foreground hover:underline">← Back to plans</button>
             </div>
-
-            {state.error && <p className="text-sm text-destructive">{state.error}</p>}
-
-            <button
-              type="submit"
-              disabled={pending}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground shadow-[var(--shadow-md)] transition hover:brightness-110 disabled:opacity-60"
-            >
-              {pending ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</> : <>Pay ₹{selected.price.toLocaleString('en-IN')} (Demo)</>}
-            </button>
-            <button type="button" onClick={() => setStep('plan')} className="w-full text-sm text-muted-foreground hover:underline">← Back to plans</button>
-          </form>
+          ) : (
+            <form action={formAction} className="space-y-4">
+              <input type="hidden" name="token" value={token} />
+              <input type="hidden" name="plan" value={plan} />
+              <input type="hidden" name="meta_app_id" value={metaAppId} />
+              <input type="hidden" name="meta_app_secret" value={metaAppSecret} />
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 rounded-md border border-input bg-background px-3">
+                  <CreditCard className="h-4 w-4 text-muted-foreground" />
+                  <input defaultValue="4242 4242 4242 4242" className="h-11 flex-1 bg-transparent text-sm outline-none" />
+                </div>
+                <div className="flex gap-2">
+                  <input defaultValue="12/28" className="h-11 flex-1 rounded-md border border-input bg-background px-3 text-sm" />
+                  <input defaultValue="123" className="h-11 w-24 rounded-md border border-input bg-background px-3 text-sm" />
+                </div>
+              </div>
+              {state.error && <p className="text-sm text-destructive">{state.error}</p>}
+              <button type="submit" disabled={pending} className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground shadow-[var(--shadow-md)] transition hover:brightness-110 disabled:opacity-60">
+                {pending ? <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</> : <>Pay ₹{selected.price.toLocaleString('en-IN')} (Demo)</>}
+              </button>
+              <button type="button" onClick={() => setStep('plan')} className="w-full text-sm text-muted-foreground hover:underline">← Back to plans</button>
+            </form>
+          )}
         </Card>
       )}
 

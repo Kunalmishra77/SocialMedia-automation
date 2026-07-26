@@ -1,4 +1,5 @@
 import { getOnboardingState } from '@/lib/actions/onboarding'
+import { razorpayConfigured } from '@/lib/billing/razorpay'
 import { OnboardingFlow } from './onboarding-flow'
 
 export default async function OnboardPage({ params }: { params: Promise<{ token: string }> }) {
@@ -29,7 +30,12 @@ export default async function OnboardPage({ params }: { params: Promise<{ token:
           <span className="text-xs text-muted-foreground">Client onboarding</span>
         </div>
       </div>
-      <OnboardingFlow token={token} workspaceName={state.workspaceName ?? 'your brand'} initialStep={initialStep} />
+      <OnboardingFlow
+        token={token}
+        workspaceName={state.workspaceName ?? 'your brand'}
+        initialStep={initialStep}
+        razorpay={razorpayConfigured()}
+      />
     </div>
   )
 }

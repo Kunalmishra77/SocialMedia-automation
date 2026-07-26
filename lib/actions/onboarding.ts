@@ -7,6 +7,7 @@ import { requirePlatformAdmin, can, writeAudit } from '@/lib/platform-admin/auth
 import { planByKey } from '@/lib/plans'
 import { encrypt } from '@/lib/crypto'
 import { sendMail, credentialsEmailHtml } from '@/lib/email'
+import { razorpayConfigured, razorpayKeyId, createOrder, verifyPaymentSignature } from '@/lib/billing/razorpay'
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'client'
@@ -141,6 +142,55 @@ export async function submitOnboardingAction(
       onboarding_data: { plan: plan.key, price: plan.price, demo_payment: true },
     })
     .eq('id', ws.id)
+
+  revalidatePath('/platform-admin/approvals')
+  return { ok: true }
+}
+
+/** Create a Razorpay order for the onboarding payment (or signal demo mode). */
+export async function createPaymentOrderAction(
+  token: string,
+  planKey: string,
+): Promise<{ demo: boolean; orderId?: string; amount?: number; keyId?: string; error?: string }> {
+  const plan = planByKey(planKey)
+  if (!plan) return { demo: true, error: 'Invalid plan' }
+  if (!razorpayConfigured()) return { demo: true }
+
+  const admin = createAdminClient()
+  const { data: ws } = await admin.from('workspaces').select('id, status').eq('onboarding_token', token).maybeSingle()
+  if (!ws || ws.status !== 'onboarding') return { demo: true, error: 'Invalid link' }
+
+  const order = await createOrder(plan.price, { workspaceId: ws.id, plan: plan.key })
+  if (!order) return { demo: true }
+  return { demo: false, orderId: order.id, amount: order.amount, keyId: razorpayKeyId() }
+}
+
+/** Confirm a Razorpay Checkout success (verify signature) → pending approval. */
+export async function confirmRazorpayPaymentAction(
+  _prev: { error?: string; ok?: boolean },
+  formData: FormData,
+): Promise<{ error?: string; ok?: boolean }> {
+  const token = String(formData.get('token'))
+  const planKey = String(formData.get('plan'))
+  const orderId = String(formData.get('razorpay_order_id'))
+  const paymentId = String(formData.get('razorpay_payment_id'))
+  const signature = String(formData.get('razorpay_signature'))
+  const plan = planByKey(planKey)
+  if (!plan) return { error: 'Invalid plan' }
+  if (!verifyPaymentSignature(orderId, paymentId, signature)) return { error: 'Payment verification failed' }
+
+  const admin = createAdminClient()
+  const { data: ws } = await admin.from('workspaces').select('id, status').eq('onboarding_token', token).maybeSingle()
+  if (!ws || ws.status !== 'onboarding') return { error: 'Already submitted' }
+
+  await admin.from('workspaces').update({
+    selected_plan: plan.key,
+    payment_status: 'paid',
+    payment_amount: plan.price,
+    status: 'pending_approval',
+    submitted_at: new Date().toISOString(),
+    onboarding_data: { plan: plan.key, price: plan.price, razorpay_order_id: orderId, razorpay_payment_id: paymentId },
+  }).eq('id', ws.id)
 
   revalidatePath('/platform-admin/approvals')
   return { ok: true }
