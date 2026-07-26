@@ -1,18 +1,30 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #0b0b0f;
+  /* Surfaces */
+  --background: #fafafa;
+  --foreground: #18181b;
   --card: #ffffff;
   --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #e1306c;
-  --primary: #e1306c;
+  --muted-foreground: #52525b;
+  --border: #e7e7ea;
+  --input: #e0e0e4;
+  --ring: #e11d48;
+
+  /* Brand */
+  --primary: #e11d48;          /* rose-600 — ties to the IG gradient, accessible */
   --primary-foreground: #ffffff;
+  --accent: #2563eb;           /* engagement blue for links/secondary emphasis */
+  --accent-foreground: #ffffff;
   --destructive: #dc2626;
+
   --radius: 0.7rem;
+
+  /* Elevation scale (subtle, layered) */
+  --shadow-sm: 0 1px 2px 0 rgb(24 24 27 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(24 24 27 / 0.08), 0 1px 2px -1px rgb(24 24 27 / 0.06);
+  --shadow-md: 0 4px 12px -2px rgb(24 24 27 / 0.08), 0 2px 6px -2px rgb(24 24 27 / 0.05);
+  --shadow-lg: 0 12px 28px -6px rgb(24 24 27 / 0.12), 0 4px 10px -4px rgb(24 24 27 / 0.06);
 }
 
 @theme inline {
@@ -26,16 +38,25 @@
   --color-ring: var(--ring);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 0.2rem);
   --radius-sm: calc(var(--radius) - 0.35rem);
+  --shadow-card: var(--shadow);
+  --shadow-elevated: var(--shadow-md);
+  --shadow-pop: var(--shadow-lg);
 }
 
 * {
   border-color: var(--border);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -43,9 +64,17 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Brand gradient — vibrant social-media accent used on auth panels and the logo mark. */
+/* Consistent, smooth interaction feel across the app */
+a, button, select, input, [role="button"] {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: 160ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Brand gradient — vibrant social accent used on auth panels, logo, avatars */
 .brand-gradient {
   background: linear-gradient(135deg, #f9ce34 0%, #ee2a7b 45%, #6228d7 100%);
 }
@@ -54,4 +83,20 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+/* Refined scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d8 transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 9999px; }
+*::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

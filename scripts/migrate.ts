@@ -60,6 +60,15 @@ async function main() {
     }
   }
 
+  // Tell Supabase PostgREST to reload its schema cache so newly created
+  // tables/columns are immediately visible to the REST API (supabase-js .from()).
+  try {
+    await client.query(`NOTIFY pgrst, 'reload schema'`)
+    console.log('↻ Sent PostgREST schema reload')
+  } catch {
+    /* non-fatal */
+  }
+
   await client.end()
   console.log(`\nDone. ${ran} migration(s) applied, ${files.length - ran} already up to date.`)
 }

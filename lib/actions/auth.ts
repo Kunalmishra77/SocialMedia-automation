@@ -61,6 +61,16 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) return { error: 'Invalid email or password' }
 
+  // Same login for everyone — platform admins land on the operator console,
+  // clients land on their workspace. No separate URL.
+  const admin = createAdminClient()
+  const { data: pa } = await admin
+    .from('platform_admins')
+    .select('is_active')
+    .eq('user_id', data.user.id)
+    .maybeSingle()
+  if (pa?.is_active) redirect('/platform-admin')
+
   const memberships = await getMemberships(data.user.id)
   if (memberships.length === 0) redirect('/workspace/new')
   redirect('/')
