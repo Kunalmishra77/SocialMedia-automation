@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ShieldCheck, LayoutDashboard, Building2, ScrollText, Flag, Users } from 'lucide-react'
+import { ShieldCheck, LayoutDashboard, Building2, ScrollText, Flag, Users, BadgeCheck } from 'lucide-react'
 import { requirePlatformAdmin } from '@/lib/platform-admin/auth'
 import { logoutAction } from '@/lib/actions/auth'
 
@@ -8,6 +8,7 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
 
   const nav = [
     { label: 'Overview', href: '/platform-admin', icon: LayoutDashboard },
+    { label: 'Approvals', href: '/platform-admin/approvals', icon: BadgeCheck },
     { label: 'Workspaces', href: '/platform-admin/workspaces', icon: Building2 },
     { label: 'Feature flags', href: '/platform-admin/feature-flags', icon: Flag },
     { label: 'Admins', href: '/platform-admin/admins', icon: Users },
