@@ -1,31 +1,54 @@
 import 'server-only'
 
+import nodemailer from 'nodemailer'
+
+function smtpConfigured(): boolean {
+  return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+}
+
 /**
- * Sends an email via Resend if RESEND_API_KEY is set; otherwise logs it (dev).
+ * Sends an email. Priority: SMTP (nodemailer) → Resend → dev log.
  * Returns true if actually sent.
  */
-export async function sendMail(opts: {
-  to: string
-  subject: string
-  html: string
-}): Promise<boolean> {
-  const apiKey = process.env.RESEND_API_KEY
-  const from = process.env.EMAIL_FROM || 'Socialflow <onboarding@resend.dev>'
+export async function sendMail(opts: { to: string; subject: string; html: string }): Promise<boolean> {
+  const from = process.env.EMAIL_FROM || process.env.SMTP_USER || 'Socialflow <onboarding@resend.dev>'
 
-  if (!apiKey) {
-    console.log('[email:dev] to=%s subject=%s\n%s', opts.to, opts.subject, opts.html)
-    return false
+  // 1) SMTP (any provider — Gmail, Zoho, your mail server, etc.)
+  if (smtpConfigured()) {
+    try {
+      const port = Number(process.env.SMTP_PORT ?? 587)
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port,
+        secure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : port === 465,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      })
+      await transporter.sendMail({ from, to: opts.to, subject: opts.subject, html: opts.html })
+      return true
+    } catch (err) {
+      console.error('[email:smtp] failed:', err)
+      // fall through to Resend/log
+    }
   }
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to: opts.to, subject: opts.subject, html: opts.html }),
-    })
-    return res.ok
-  } catch {
-    return false
+
+  // 2) Resend
+  const apiKey = process.env.RESEND_API_KEY
+  if (apiKey) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to: opts.to, subject: opts.subject, html: opts.html }),
+      })
+      return res.ok
+    } catch {
+      /* fall through */
+    }
   }
+
+  // 3) Dev log
+  console.log('[email:dev] to=%s subject=%s\n%s', opts.to, opts.subject, opts.html)
+  return false
 }
 
 export function credentialsEmailHtml(opts: {
