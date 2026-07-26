@@ -25,6 +25,10 @@ export default async function AutomationPage() {
         <p className="text-sm text-muted-foreground">
           Event-driven workflows — trigger → action, running in the background.
         </p>
+        <div className="mt-2 flex gap-3 text-sm">
+          <span className="font-medium text-primary">Workflows</span>
+          <a href="/automation/rules" className="text-muted-foreground hover:text-foreground hover:underline">Inbox rules →</a>
+        </div>
       </div>
 
       <div>
