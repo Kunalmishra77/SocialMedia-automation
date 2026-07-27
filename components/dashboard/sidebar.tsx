@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, MessagesSquare, Users, Target, Megaphone, CalendarDays,
   Workflow, BarChart3, BookOpen, Sparkles, ShoppingBag, Megaphone as AdsIcon,
-  UserCog, Settings, ChevronsUpDown, type LucideIcon,
+  UserCog, Settings, ChevronsUpDown, LifeBuoy, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MembershipRole, WorkspaceMembership } from '@/lib/authz'
@@ -63,6 +63,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { label: 'Team', href: '/team', icon: UserCog },
       { label: 'Settings', href: '/settings', icon: Settings },
+      { label: 'Help', href: '/help', icon: LifeBuoy, agentVisible: true },
     ],
   },
 ]

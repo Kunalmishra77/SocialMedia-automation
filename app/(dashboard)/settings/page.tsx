@@ -53,17 +53,26 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Developer</CardTitle>
-          <CardDescription>API keys for programmatic access.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <a href="/settings/api-keys" className="text-sm font-medium text-primary hover:underline">
-            Manage API keys →
-          </a>
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Billing</CardTitle>
+            <CardDescription>Plan, usage & subscription.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <a href="/settings/billing" className="text-sm font-medium text-primary hover:underline">Manage billing →</a>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Developer</CardTitle>
+            <CardDescription>API keys for programmatic access.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <a href="/settings/api-keys" className="text-sm font-medium text-primary hover:underline">Manage API keys →</a>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
