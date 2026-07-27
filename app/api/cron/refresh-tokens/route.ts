@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyInternalCronCall } from '@/lib/cron-auth'
+import { encryptToken, decryptToken } from '@/lib/crypto'
 
 /** Refresh long-lived tokens for channel accounts nearing expiry (within 10 days). */
 export async function GET(req: NextRequest) {
@@ -22,17 +23,18 @@ export async function GET(req: NextRequest) {
   let refreshed = 0
   let failed = 0
   for (const acc of accounts ?? []) {
-    if (acc.channel === 'instagram' && acc.access_token) {
+    const currentToken = decryptToken(acc.access_token)
+    if (acc.channel === 'instagram' && currentToken) {
       try {
         const res = await fetch(
-          `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${acc.access_token}`,
+          `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${currentToken}`,
         )
         const data = await res.json()
         if (data.access_token) {
           await admin
             .from('channel_accounts')
             .update({
-              access_token: data.access_token,
+              access_token: encryptToken(data.access_token),
               token_expires_at: new Date(Date.now() + (data.expires_in ?? 5_184_000) * 1000).toISOString(),
             })
             .eq('id', acc.id)

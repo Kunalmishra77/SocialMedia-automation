@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership } from '@/lib/authz'
 import { sendTelegramMessage } from '@/lib/channels/telegram'
+import { decryptToken } from '@/lib/crypto'
 
 async function ctx() {
   const user = await getUser()
@@ -42,8 +43,9 @@ export async function sendMessageAction(formData: FormData): Promise<{ error?: s
       .eq('id', conv.channel_account_id)
       .maybeSingle()
     const chatId = (conv.meta as { telegram_chat_id?: string } | null)?.telegram_chat_id
-    if (acct?.access_token && chatId) {
-      const res = await sendTelegramMessage(acct.access_token, chatId, content)
+    const inboxToken = decryptToken(acct?.access_token)
+    if (inboxToken && chatId) {
+      const res = await sendTelegramMessage(inboxToken, chatId, content)
       if (!res.ok) deliveryStatus = 'failed'
     } else {
       deliveryStatus = 'failed'

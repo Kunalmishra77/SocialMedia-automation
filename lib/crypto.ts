@@ -34,3 +34,26 @@ export function decrypt(payload: string): string | null {
     return null
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// Token-at-rest helpers (backward compatible).
+// Newly stored tokens get an "enc:v1:" marker + AES-GCM ciphertext. Existing
+// PLAINTEXT tokens (no marker) are returned as-is, so nothing breaks — they
+// migrate to encrypted the next time they're written (e.g. token refresh).
+// ─────────────────────────────────────────────────────────────
+
+const TOKEN_MARKER = 'enc:v1:'
+
+/** Encrypt a token/secret for storage. Empty/undefined passes through. */
+export function encryptToken(plain: string | null | undefined): string | null {
+  if (!plain) return plain ?? null
+  if (plain.startsWith(TOKEN_MARKER)) return plain // already encrypted
+  return TOKEN_MARKER + encrypt(plain)
+}
+
+/** Decrypt a stored token/secret. Legacy plaintext (no marker) is returned as-is. */
+export function decryptToken(stored: string | null | undefined): string {
+  if (!stored) return ''
+  if (stored.startsWith(TOKEN_MARKER)) return decrypt(stored.slice(TOKEN_MARKER.length)) ?? ''
+  return stored
+}

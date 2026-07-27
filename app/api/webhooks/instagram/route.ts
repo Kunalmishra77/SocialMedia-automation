@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { decryptToken } from '@/lib/crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   fetchInstagramProfile, sendInstagramDM, sendInstagramButtons,
@@ -51,7 +52,8 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
     if (!account?.access_token || !account.is_active) continue
 
-    const token = account.access_token
+    const token = decryptToken(account.access_token)
+    if (!token) continue
     const workspaceId = account.workspace_id
     const settings = await getSettings(admin, workspaceId)
 

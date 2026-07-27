@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { exchangeIgCode, igLongLivedToken, fetchInstagramProfile, IG_CAPS } from '@/lib/channels/instagram'
+import { encryptToken } from '@/lib/crypto'
 
 /** Instagram Business Login callback: exchange code, store the long-lived token. */
 export async function GET(req: NextRequest) {
@@ -23,6 +24,7 @@ export async function GET(req: NextRequest) {
   const profile = await fetchInstagramProfile(short.userId, token)
 
   const admin = createAdminClient()
+  const encToken = encryptToken(token)
   await admin.from('channel_accounts').upsert(
     {
       workspace_id: workspaceId,
@@ -30,7 +32,7 @@ export async function GET(req: NextRequest) {
       external_id: short.userId,
       handle: profile.username,
       display_name: profile.name,
-      access_token: token,
+      access_token: encToken,
       token_expires_at: expiresAt,
       capabilities: IG_CAPS,
       is_active: true,
@@ -46,7 +48,7 @@ export async function GET(req: NextRequest) {
       name: profile.name,
       profile_pic: profile.profile_pic,
       followers_count: profile.follower_count,
-      access_token: token,
+      access_token: encToken,
       token_expires_at: expiresAt,
       webhook_verified: true,
       is_active: true,

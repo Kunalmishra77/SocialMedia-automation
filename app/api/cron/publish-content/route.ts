@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyInternalCronCall } from '@/lib/cron-auth'
 import { publishImage } from '@/lib/channels/instagram'
+import { decryptToken } from '@/lib/crypto'
 
 /** Publish due scheduled content posts via the connected Instagram account. */
 export async function GET(req: NextRequest) {
@@ -35,8 +36,9 @@ export async function GET(req: NextRequest) {
       .maybeSingle()
 
     const imageUrl = (post.media_urls as string[] | null)?.[0]
-    if (acct?.access_token && acct.external_id && imageUrl && (post.type === 'feed' || post.type === 'carousel')) {
-      const res = await publishImage(acct.access_token, acct.external_id, imageUrl, post.caption ?? '')
+    const acctToken = decryptToken(acct?.access_token)
+    if (acctToken && acct?.external_id && imageUrl && (post.type === 'feed' || post.type === 'carousel')) {
+      const res = await publishImage(acctToken, acct.external_id, imageUrl, post.caption ?? '')
       if (res.ok) {
         await admin.from('content_posts').update({ status: 'published', published_at: new Date().toISOString(), ig_media_id: res.id }).eq('id', post.id)
         published++

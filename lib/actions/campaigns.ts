@@ -7,6 +7,7 @@ import { getUser, getActiveMembership, roleCan } from '@/lib/authz'
 import { sendTelegramMessage } from '@/lib/channels/telegram'
 import { windowStatus } from '@/lib/inbox'
 import { callAI, aiConfigured } from '@/lib/ai/client'
+import { decryptToken } from '@/lib/crypto'
 
 /** AI: draft a campaign broadcast message from a goal. */
 export async function aiGenerateCampaignMessage(goal: string): Promise<{ message?: string; error?: string }> {
@@ -115,8 +116,9 @@ export async function runCampaignAction(formData: FormData): Promise<void> {
         .eq('id', conv.channel_account_id)
         .maybeSingle()
       const chatId = (conv.meta as { telegram_chat_id?: string } | null)?.telegram_chat_id
-      if (acct?.access_token && chatId) {
-        const res = await sendTelegramMessage(acct.access_token, chatId, campaign.message_text ?? '')
+      const campToken = decryptToken(acct?.access_token)
+      if (campToken && chatId) {
+        const res = await sendTelegramMessage(campToken, chatId, campaign.message_text ?? '')
         ok = res.ok
         if (ok) {
           await admin.from('messages').insert({

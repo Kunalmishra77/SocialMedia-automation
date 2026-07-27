@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { decryptToken } from '@/lib/crypto'
 import { sendTelegramMessage } from '@/lib/channels/telegram'
 import { getAIReply } from '@/lib/ai/reply'
 import { aiConfigured } from '@/lib/ai/client'
@@ -28,13 +29,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Constant-time compare of the per-bot webhook secret (mitigates timing attacks).
   const secret = req.headers.get('x-telegram-bot-api-secret-token') ?? ''
-  if (account.webhook_secret) {
+  const storedSecret = decryptToken(account.webhook_secret as string | null)
+  if (storedSecret) {
     const a = Buffer.from(secret)
-    const b = Buffer.from(account.webhook_secret as string)
+    const b = Buffer.from(storedSecret)
     if (a.length !== b.length || !timingSafeEqual(a, b)) {
       return NextResponse.json({ ok: true })
     }
   }
+  const tgToken = decryptToken(account.access_token as string | null)
 
   let update: any
   try {
@@ -119,19 +122,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (insErr) return NextResponse.json({ ok: true })
 
   // Custom flow builder (multi-step) runs first; if a flow matched, we're done.
-  if (text && account.access_token) {
+  if (text && tgToken) {
     const flowRan = await runFlowsForDM(admin, {
       workspaceId, conversationId, contactId: contact.id, channel: 'telegram',
-      token: account.access_token, recipient: chatId, text, isFirstDm: !existing,
+      token: tgToken, recipient: chatId, text, isFirstDm: !existing,
     })
     if (flowRan) return NextResponse.json({ ok: true })
   }
 
   // Inbox rules (keyword auto-reply / label / assign) run before AI.
-  if (text && account.access_token) {
+  if (text && tgToken) {
     const ruled = await applyInboxRules(admin, workspaceId, conversationId, text)
     if (ruled.autoReply) {
-      const sent = await sendTelegramMessage(account.access_token, chatId, ruled.autoReply)
+      const sent = await sendTelegramMessage(tgToken, chatId, ruled.autoReply)
       if (sent.ok) {
         await admin.from('messages').insert({
           conversation_id: conversationId, workspace_id: workspaceId, sender_type: 'bot',
@@ -144,7 +147,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // AI auto-reply (if configured + enabled + bot not paused).
-  if (text && aiConfigured() && account.access_token) {
+  if (text && aiConfigured() && tgToken) {
     const [{ data: ws }, { data: conv }] = await Promise.all([
       admin.from('workspaces').select('settings').eq('id', workspaceId).maybeSingle(),
       admin.from('conversations').select('bot_paused').eq('id', conversationId).maybeSingle(),
@@ -153,7 +156,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (autoReply && !conv?.bot_paused) {
       const reply = await getAIReply(admin, workspaceId, conversationId, text)
       if (reply) {
-        const sent = await sendTelegramMessage(account.access_token, chatId, reply)
+        const sent = await sendTelegramMessage(tgToken, chatId, reply)
         if (sent.ok) {
           await admin.from('messages').insert({
             conversation_id: conversationId,

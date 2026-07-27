@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership, roleCan } from '@/lib/authz'
 import { getTelegramMe, setTelegramWebhook } from '@/lib/channels/telegram'
+import { encryptToken } from '@/lib/crypto'
 
 async function requireManageWorkspace(): Promise<string> {
   const user = await getUser()
@@ -41,8 +42,8 @@ export async function connectTelegramAction(formData: FormData): Promise<{ error
         external_id: String(me.id),
         handle: me.username,
         display_name: me.first_name,
-        access_token: token,
-        webhook_secret: secret,
+        access_token: encryptToken(token),
+        webhook_secret: encryptToken(secret),
         capabilities: TELEGRAM_CAPS,
         is_active: true,
       },

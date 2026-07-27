@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { decryptToken } from '@/lib/crypto'
 
 const GRAPH = 'https://graph.instagram.com/v24.0'
 const DAY = 86400_000
@@ -77,7 +78,7 @@ export async function getMetaUsage(): Promise<MetaUsage> {
         : new Date(expiresAt).getTime() < now ? 'expired'
         : new Date(expiresAt).getTime() < now + 7 * DAY ? 'expiring' : 'ok'
 
-      const token = r.access_token as string | null
+      const token = decryptToken(r.access_token as string | null)
       const id = r.external_id as string
       if (!token) {
         return { workspace, channel: r.channel as string, handle: r.handle as string | null, ok: false, statusLabel: 'no token', latencyMs: 0, tokenState, expiresAt }

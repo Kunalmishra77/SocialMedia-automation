@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyInternalCronCall } from '@/lib/cron-auth'
 import { sendTelegramMessage } from '@/lib/channels/telegram'
 import { sendInstagramDM } from '@/lib/channels/instagram'
+import { decryptToken } from '@/lib/crypto'
 
 interface Step { delay_hours: number; message: string }
 
@@ -42,10 +43,11 @@ export async function GET(req: NextRequest) {
     if (conv?.channel_account_id) {
       const { data: acct } = await admin.from('channel_accounts').select('access_token, external_id').eq('id', conv.channel_account_id).maybeSingle()
       const meta = conv.meta as { telegram_chat_id?: string; ig_igsid?: string } | null
-      if (acct?.access_token && conv.channel === 'telegram' && meta?.telegram_chat_id) {
-        ok = (await sendTelegramMessage(acct.access_token, meta.telegram_chat_id, step.message)).ok
-      } else if (acct?.access_token && conv.channel === 'dm' && meta?.ig_igsid) {
-        ok = (await sendInstagramDM(acct.access_token, meta.ig_igsid, step.message)).ok
+      const seqToken = decryptToken(acct?.access_token)
+      if (seqToken && conv.channel === 'telegram' && meta?.telegram_chat_id) {
+        ok = (await sendTelegramMessage(seqToken, meta.telegram_chat_id, step.message)).ok
+      } else if (seqToken && conv.channel === 'dm' && meta?.ig_igsid) {
+        ok = (await sendInstagramDM(seqToken, meta.ig_igsid, step.message)).ok
       }
     }
     if (ok) {
