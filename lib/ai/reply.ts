@@ -3,6 +3,7 @@ import 'server-only'
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { callAI, generateEmbedding, aiConfigured, type ChatMessage } from '@/lib/ai/client'
 import { searchDocuments } from '@/lib/ai/vector'
+import { logUsage } from '@/lib/usage'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -28,6 +29,7 @@ export async function getAIReply(
   let kbContext = ''
   const embedding = await generateEmbedding(lastInboundText)
   if (embedding) {
+    await logUsage(admin, workspaceId, 'ai_embedding')
     const { data: matches } = await admin.rpc('match_knowledge_base', {
       query_embedding: embedding,
       workspace_id_param: workspaceId,
@@ -77,5 +79,7 @@ export async function getAIReply(
     '\nRules: Never invent policies or prices. Keep replies under 80 words. Match the customer\'s language.',
   ].join('')
 
-  return callAI([{ role: 'system', content: system }, ...historyMsgs], { maxTokens: 300, temperature: 0.6 })
+  const reply = await callAI([{ role: 'system', content: system }, ...historyMsgs], { maxTokens: 300, temperature: 0.6 })
+  if (reply) await logUsage(admin, workspaceId, 'ai_reply')
+  return reply
 }

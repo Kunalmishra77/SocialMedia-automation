@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { MessagesSquare, Users, Target, TrendingUp, Plus, Megaphone, Sparkles, Plug } from 'lucide-react'
+import { MessagesSquare, Users, Target, TrendingUp, Plus, Megaphone, Sparkles, Plug, Rocket, ArrowRight } from 'lucide-react'
 import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { platformByKey } from '@/lib/platforms'
@@ -47,6 +47,20 @@ export default async function DashboardHome() {
           Here&apos;s what&apos;s happening in <span className="font-medium">{active?.name}</span>.
         </p>
       </div>
+
+      {/* First-run setup banner */}
+      {(!channels || channels.length === 0) && (
+        <Link href="/setup" className="group flex items-center justify-between gap-4 rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 to-transparent p-5 transition-colors hover:border-primary/50">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Rocket className="h-5 w-5" /></span>
+            <div>
+              <p className="font-semibold">Let&apos;s get your automation ready</p>
+              <p className="text-sm text-muted-foreground">Connect an account, set up AI, and go live — follow the guided steps in Setup Center.</p>
+            </div>
+          </div>
+          <span className="hidden shrink-0 items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground sm:flex">Open Setup <ArrowRight className="h-4 w-4" /></span>
+        </Link>
+      )}
 
       {/* Connected channels */}
       <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">

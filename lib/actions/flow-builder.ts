@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership, roleCan } from '@/lib/authz'
 import { callAI, aiConfigured } from '@/lib/ai/client'
+import { planLimits, withinLimit, isUnlimited } from '@/lib/plan-features'
 
 export interface FlowStep {
   id: string
@@ -31,6 +32,17 @@ export async function createCustomFlowAction(formData: FormData): Promise<void> 
   const keyword = String(formData.get('keyword') ?? '').trim()
 
   const admin = createAdminClient()
+
+  // Enforce the plan's flow limit.
+  const { data: wsRow } = await admin.from('workspaces').select('plan').eq('id', workspaceId).maybeSingle()
+  const limit = planLimits(wsRow?.plan ?? 'free').maxFlows
+  if (!isUnlimited(limit)) {
+    const { count } = await admin.from('workflow_automations').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId)
+    if (!withinLimit(wsRow?.plan ?? 'free', 'maxFlows', count ?? 0)) {
+      redirect('/automation/flows?limit=flows')
+    }
+  }
+
   const { data } = await admin
     .from('workflow_automations')
     .insert({

@@ -7,11 +7,12 @@ import { WORKFLOW_TEMPLATES } from '@/lib/workflow-templates'
 import { createCustomFlowAction } from '@/lib/actions/flow-builder'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-export default async function AutomationPage() {
+export default async function AutomationPage({ searchParams }: { searchParams: Promise<{ limit?: string }> }) {
   const user = await requireUser()
   const { active } = await getActiveMembership(user.id)
   if (!active) redirect('/workspace/new')
   if (active.role === 'agent') redirect('/')
+  const { limit } = await searchParams
 
   const admin = createAdminClient()
   const { data: workflows } = await admin
@@ -31,8 +32,15 @@ export default async function AutomationPage() {
           <span className="font-medium text-primary">Workflows</span>
           <a href="/automation/rules" className="text-muted-foreground hover:text-foreground hover:underline">Inbox rules</a>
           <a href="/automation/sequences" className="text-muted-foreground hover:text-foreground hover:underline">Sequences</a>
+          <a href="/automation/health" className="text-muted-foreground hover:text-foreground hover:underline">Health</a>
         </div>
       </div>
+
+      {limit === 'flows' && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          You&apos;ve reached your plan&apos;s workflow limit. <a href="/settings/billing" className="font-medium underline">Upgrade your plan</a> to create more.
+        </div>
+      )}
 
       <div>
         <div className="mb-3 flex items-center justify-between">

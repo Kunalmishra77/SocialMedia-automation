@@ -6,7 +6,7 @@ import {
   LayoutDashboard, MessagesSquare, Users, Target, Megaphone, CalendarDays,
   Workflow, BarChart3, BookOpen, Sparkles, ShoppingBag, Megaphone as AdsIcon,
   UserCog, Settings, ChevronsUpDown, LifeBuoy, CalendarCheck, Rocket, Plug,
-  type LucideIcon,
+  Activity, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MembershipRole, WorkspaceMembership } from '@/lib/authz'
@@ -53,6 +53,7 @@ const GROUPS: NavGroup[] = [
     label: 'Automate',
     items: [
       { label: 'Automation', href: '/automation/flows', icon: Workflow },
+      { label: 'Automation Health', href: '/automation/health', icon: Activity },
       { label: 'Knowledge', href: '/knowledge-base', icon: BookOpen },
     ],
   },

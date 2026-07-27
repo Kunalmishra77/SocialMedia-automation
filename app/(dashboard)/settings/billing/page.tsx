@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { changePlanAction } from '@/lib/actions/billing'
 import { getActivePlans } from '@/lib/plans-server'
 import { planLimits } from '@/lib/plan-features'
+import { getMonthlyAiUsage } from '@/lib/usage'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageHeader } from '@/components/dashboard/page-header'
 
@@ -21,6 +22,7 @@ export default async function BillingPage() {
       .then((r) => r.count ?? 0),
   ])
   const plans = await getActivePlans()
+  const aiUsage = await getMonthlyAiUsage(admin, active.workspaceId)
   const currentPlan = ws?.plan ?? 'free'
   const limits = planLimits(currentPlan)
   const msgPct = limits.maxMessages > 0 ? Math.min(100, Math.round((msgCount / limits.maxMessages) * 100)) : 0
@@ -49,6 +51,11 @@ export default async function BillingPage() {
               <div className="h-2 rounded-full bg-primary" style={{ width: `${msgPct}%` }} />
             </div>
           </div>
+          <div className="mt-4 flex items-center justify-between border-t pt-3 text-sm">
+            <span className="text-muted-foreground">AI events this month</span>
+            <span className="font-medium">{aiUsage.toLocaleString('en-IN')}</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">AI replies + embeddings powering your chatbot &amp; automations.</p>
         </CardContent>
       </Card>
 

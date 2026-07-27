@@ -65,6 +65,23 @@ export async function sendMessageAction(formData: FormData): Promise<{ error?: s
   return deliveryStatus === 'failed' ? { error: 'Message saved but delivery failed.' } : {}
 }
 
+/**
+ * Toggle the AI on/off for a conversation. Pausing = human takeover (the webhook
+ * AI paths skip conversations where bot_paused is true). Resuming re-enables AI.
+ */
+export async function toggleBotPausedAction(formData: FormData): Promise<void> {
+  const { workspaceId } = await ctx()
+  const conversationId = String(formData.get('conversationId'))
+  const paused = String(formData.get('paused')) === 'true'
+  const admin = createAdminClient()
+  await admin
+    .from('conversations')
+    .update({ bot_paused: paused })
+    .eq('id', conversationId)
+    .eq('workspace_id', workspaceId)
+  revalidatePath('/conversations')
+}
+
 export async function resolveConversationAction(formData: FormData): Promise<void> {
   const { workspaceId } = await ctx()
   const conversationId = String(formData.get('conversationId'))

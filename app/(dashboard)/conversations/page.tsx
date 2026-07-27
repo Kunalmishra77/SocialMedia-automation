@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { windowStatus, formatWindowLeft } from '@/lib/inbox'
-import { resolveConversationAction, reopenConversationAction, assignToMeAction } from '@/lib/actions/inbox'
+import { resolveConversationAction, reopenConversationAction, assignToMeAction, toggleBotPausedAction } from '@/lib/actions/inbox'
 import { RealtimeRefresh } from '@/components/dashboard/realtime-refresh'
 import { Composer } from './composer'
 
@@ -32,14 +32,14 @@ export default async function ConversationsPage({
   // Selected conversation thread
   let selected: {
     id: string; status: string; channel: string; last_user_message_at: string | null
-    contactName: string
+    botPaused: boolean; contactName: string
   } | null = null
   let messages: { id: string; direction: string; content: string | null; type: string; created_at: string; sender_type: string }[] = []
 
   if (selectedId) {
     const { data: conv } = await admin
       .from('conversations')
-      .select('id, status, channel, last_user_message_at, contacts(full_name, ig_username)')
+      .select('id, status, channel, last_user_message_at, bot_paused, contacts(full_name, ig_username)')
       .eq('id', selectedId)
       .eq('workspace_id', active.workspaceId)
       .maybeSingle()
@@ -50,6 +50,7 @@ export default async function ConversationsPage({
         status: conv.status,
         channel: conv.channel,
         last_user_message_at: conv.last_user_message_at,
+        botPaused: conv.bot_paused ?? false,
         contactName: contact?.full_name || contact?.ig_username || 'Unknown',
       }
       const { data: msgs } = await admin
@@ -134,9 +135,20 @@ export default async function ConversationsPage({
                   ) : (
                     <span className="text-amber-600">Window closed</span>
                   )}
+                  {' · '}
+                  {selected.botPaused
+                    ? <span className="font-medium text-amber-600">AI paused (human)</span>
+                    : <span className="font-medium text-emerald-600">AI active</span>}
                 </p>
               </div>
               <div className="flex gap-2">
+                <form action={toggleBotPausedAction}>
+                  <input type="hidden" name="conversationId" value={selected.id} />
+                  <input type="hidden" name="paused" value={selected.botPaused ? 'false' : 'true'} />
+                  <button className={`rounded-md px-2 py-1 text-xs ${selected.botPaused ? 'bg-emerald-600 text-white hover:opacity-90' : 'border border-input hover:bg-muted'}`}>
+                    {selected.botPaused ? 'Resume AI' : 'Take over (pause AI)'}
+                  </button>
+                </form>
                 <form action={assignToMeAction}>
                   <input type="hidden" name="conversationId" value={selected.id} />
                   <button className="rounded-md border border-input px-2 py-1 text-xs hover:bg-muted">Assign to me</button>
