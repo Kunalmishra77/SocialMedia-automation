@@ -27,7 +27,8 @@ export default async function AutomationPage() {
         </p>
         <div className="mt-2 flex gap-3 text-sm">
           <span className="font-medium text-primary">Workflows</span>
-          <a href="/automation/rules" className="text-muted-foreground hover:text-foreground hover:underline">Inbox rules →</a>
+          <a href="/automation/rules" className="text-muted-foreground hover:text-foreground hover:underline">Inbox rules</a>
+          <a href="/automation/sequences" className="text-muted-foreground hover:text-foreground hover:underline">Sequences</a>
         </div>
       </div>
 
