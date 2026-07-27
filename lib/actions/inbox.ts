@@ -82,6 +82,62 @@ export async function toggleBotPausedAction(formData: FormData): Promise<void> {
   revalidatePath('/conversations')
 }
 
+/** Add an internal note (visible to the team, never sent to the customer or AI). */
+export async function addInternalNoteAction(formData: FormData): Promise<void> {
+  const { user, workspaceId } = await ctx()
+  const conversationId = String(formData.get('conversationId'))
+  const content = String(formData.get('content') ?? '').trim()
+  if (!content) return
+  const admin = createAdminClient()
+  const { data: conv } = await admin.from('conversations').select('id').eq('id', conversationId).eq('workspace_id', workspaceId).maybeSingle()
+  if (!conv) return
+  await admin.from('messages').insert({
+    conversation_id: conversationId,
+    workspace_id: workspaceId,
+    sender_type: 'agent',
+    sender_id: user.id,
+    direction: 'outbound',
+    type: 'internal_note',
+    content,
+    status: 'sent',
+  })
+  revalidatePath('/conversations')
+}
+
+const PRIORITIES = ['low', 'normal', 'high', 'urgent']
+export async function setPriorityAction(formData: FormData): Promise<void> {
+  const { workspaceId } = await ctx()
+  const conversationId = String(formData.get('conversationId'))
+  const priority = String(formData.get('priority') ?? 'normal')
+  if (!PRIORITIES.includes(priority)) return
+  const admin = createAdminClient()
+  await admin.from('conversations').update({ priority }).eq('id', conversationId).eq('workspace_id', workspaceId)
+  revalidatePath('/conversations')
+}
+
+export async function addTagAction(formData: FormData): Promise<void> {
+  const { workspaceId } = await ctx()
+  const conversationId = String(formData.get('conversationId'))
+  const tag = String(formData.get('tag') ?? '').trim().toLowerCase().slice(0, 24)
+  if (!tag) return
+  const admin = createAdminClient()
+  const { data: conv } = await admin.from('conversations').select('tags').eq('id', conversationId).eq('workspace_id', workspaceId).maybeSingle()
+  const tags = Array.from(new Set([...(((conv?.tags as string[]) ?? [])), tag])).slice(0, 12)
+  await admin.from('conversations').update({ tags }).eq('id', conversationId).eq('workspace_id', workspaceId)
+  revalidatePath('/conversations')
+}
+
+export async function removeTagAction(formData: FormData): Promise<void> {
+  const { workspaceId } = await ctx()
+  const conversationId = String(formData.get('conversationId'))
+  const tag = String(formData.get('tag') ?? '')
+  const admin = createAdminClient()
+  const { data: conv } = await admin.from('conversations').select('tags').eq('id', conversationId).eq('workspace_id', workspaceId).maybeSingle()
+  const tags = (((conv?.tags as string[]) ?? [])).filter((t) => t !== tag)
+  await admin.from('conversations').update({ tags }).eq('id', conversationId).eq('workspace_id', workspaceId)
+  revalidatePath('/conversations')
+}
+
 export async function resolveConversationAction(formData: FormData): Promise<void> {
   const { workspaceId } = await ctx()
   const conversationId = String(formData.get('conversationId'))

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendTelegramMessage } from '@/lib/channels/telegram'
 import { getAIReply } from '@/lib/ai/reply'
@@ -25,9 +26,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Always 200 to Telegram so it doesn't retry; just no-op on problems.
   if (!account || !account.is_active) return NextResponse.json({ ok: true })
 
-  const secret = req.headers.get('x-telegram-bot-api-secret-token')
-  if (account.webhook_secret && secret !== account.webhook_secret) {
-    return NextResponse.json({ ok: true })
+  // Constant-time compare of the per-bot webhook secret (mitigates timing attacks).
+  const secret = req.headers.get('x-telegram-bot-api-secret-token') ?? ''
+  if (account.webhook_secret) {
+    const a = Buffer.from(secret)
+    const b = Buffer.from(account.webhook_secret as string)
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      return NextResponse.json({ ok: true })
+    }
   }
 
   let update: any

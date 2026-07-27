@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation'
 import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { windowStatus, formatWindowLeft } from '@/lib/inbox'
-import { resolveConversationAction, reopenConversationAction, assignToMeAction, toggleBotPausedAction } from '@/lib/actions/inbox'
+import { resolveConversationAction, reopenConversationAction, assignToMeAction, toggleBotPausedAction, setPriorityAction, addTagAction, removeTagAction, addInternalNoteAction } from '@/lib/actions/inbox'
+import { AutoSubmitSelect } from '@/components/ui/auto-submit-select'
 import { RealtimeRefresh } from '@/components/dashboard/realtime-refresh'
 import { Composer } from './composer'
 
@@ -32,14 +33,14 @@ export default async function ConversationsPage({
   // Selected conversation thread
   let selected: {
     id: string; status: string; channel: string; last_user_message_at: string | null
-    botPaused: boolean; contactName: string
+    botPaused: boolean; priority: string; tags: string[]; contactName: string
   } | null = null
   let messages: { id: string; direction: string; content: string | null; type: string; created_at: string; sender_type: string }[] = []
 
   if (selectedId) {
     const { data: conv } = await admin
       .from('conversations')
-      .select('id, status, channel, last_user_message_at, bot_paused, contacts(full_name, ig_username)')
+      .select('id, status, channel, last_user_message_at, bot_paused, priority, tags, contacts(full_name, ig_username)')
       .eq('id', selectedId)
       .eq('workspace_id', active.workspaceId)
       .maybeSingle()
@@ -51,6 +52,8 @@ export default async function ConversationsPage({
         channel: conv.channel,
         last_user_message_at: conv.last_user_message_at,
         botPaused: conv.bot_paused ?? false,
+        priority: (conv as { priority?: string }).priority ?? 'normal',
+        tags: ((conv as { tags?: string[] }).tags) ?? [],
         contactName: contact?.full_name || contact?.ig_username || 'Unknown',
       }
       const { data: msgs } = await admin
@@ -167,11 +170,48 @@ export default async function ConversationsPage({
               </div>
             </div>
 
+            {/* Priority + tags bar */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2 text-xs">
+              <form action={setPriorityAction} className="flex items-center gap-1">
+                <input type="hidden" name="conversationId" value={selected.id} />
+                <span className="text-muted-foreground">Priority</span>
+                <AutoSubmitSelect
+                  name="priority"
+                  defaultValue={selected.priority}
+                  options={[{ value: 'low', label: 'Low' }, { value: 'normal', label: 'Normal' }, { value: 'high', label: 'High' }, { value: 'urgent', label: 'Urgent' }]}
+                  className={`rounded-md border border-input bg-background px-2 py-1 text-xs ${selected.priority === 'urgent' ? 'text-red-600' : selected.priority === 'high' ? 'text-amber-600' : ''}`}
+                />
+              </form>
+              <span className="text-muted-foreground">·</span>
+              <div className="flex flex-wrap items-center gap-1">
+                {selected.tags.map((t) => (
+                  <form key={t} action={removeTagAction} className="inline">
+                    <input type="hidden" name="conversationId" value={selected.id} />
+                    <input type="hidden" name="tag" value={t} />
+                    <button className="rounded-full bg-muted px-2 py-0.5 text-[11px] hover:bg-muted/70" title="Remove tag">{t} ✕</button>
+                  </form>
+                ))}
+                <form action={addTagAction} className="inline-flex">
+                  <input type="hidden" name="conversationId" value={selected.id} />
+                  <input name="tag" placeholder="+ tag" className="h-6 w-20 rounded-full border border-input bg-background px-2 text-[11px]" />
+                </form>
+              </div>
+            </div>
+
             <div className="flex-1 space-y-2 overflow-y-auto bg-muted/20 p-4">
               {messages.length === 0 && (
                 <p className="text-center text-sm text-muted-foreground">No messages yet.</p>
               )}
               {messages.map((m) => {
+                if (m.type === 'internal_note') {
+                  return (
+                    <div key={m.id} className="flex justify-center">
+                      <div className="max-w-[80%] rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+                        <span className="font-medium">📝 Internal note:</span> {m.content}
+                      </div>
+                    </div>
+                  )
+                }
                 const outbound = m.direction === 'outbound'
                 return (
                   <div key={m.id} className={`flex ${outbound ? 'justify-end' : 'justify-start'}`}>
@@ -186,6 +226,13 @@ export default async function ConversationsPage({
                 )
               })}
             </div>
+
+            {/* Internal note */}
+            <form action={addInternalNoteAction} className="flex gap-2 border-t border-border bg-amber-50/40 px-3 py-2">
+              <input type="hidden" name="conversationId" value={selected.id} />
+              <input name="content" placeholder="Add an internal note (team only)…" className="h-8 flex-1 rounded-md border border-input bg-background px-3 text-xs" />
+              <button className="rounded-md border border-amber-300 bg-amber-100 px-3 text-xs font-medium text-amber-800 hover:bg-amber-200">Add note</button>
+            </form>
 
             <Composer conversationId={selected.id} windowOpen={win.open} />
           </>
