@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useActionState } from 'react'
 import { Sparkles, Loader2 } from 'lucide-react'
 import { createPostAction, generateCaptionAction } from '@/lib/actions/content'
+import { PLATFORMS } from '@/lib/platforms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -44,6 +45,18 @@ export function CreatePost() {
           <option value="story">Story</option>
         </select>
         <Input name="scheduled_at" type="datetime-local" />
+      </div>
+
+      <div>
+        <p className="mb-1.5 text-xs font-medium text-muted-foreground">Publish to</p>
+        <div className="flex flex-wrap gap-2">
+          {PLATFORMS.map((p) => (
+            <label key={p.key} className="flex cursor-pointer items-center gap-1.5 rounded-full border border-border px-3 py-1 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+              <input type="checkbox" name="target_platforms" value={p.key} defaultChecked={p.key === 'instagram'} className="accent-[color:var(--primary)]" />
+              <span className="h-2 w-2 rounded-full" style={{ background: p.accent }} /> {p.name}
+            </label>
+          ))}
+        </div>
       </div>
 
       {/* AI generator */}

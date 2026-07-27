@@ -27,12 +27,16 @@ export async function createPostAction(formData: FormData): Promise<{ error?: st
     ? hashtagsRaw.split(/[\s,]+/).map((h) => h.replace(/^#/, '')).filter(Boolean)
     : []
 
+  const targets = formData.getAll('target_platforms').map((t) => String(t)).filter(Boolean)
+  const target_platforms = targets.length > 0 ? targets : ['instagram']
+
   const admin = createAdminClient()
   await admin.from('content_posts').insert({
     workspace_id: workspaceId,
     type,
     caption,
     hashtags,
+    target_platforms,
     status: scheduledAt ? 'scheduled' : 'draft',
     scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
     created_by: user.id,
