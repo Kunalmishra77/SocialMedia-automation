@@ -112,15 +112,16 @@ export interface PlatformAdminRow {
   is_active: boolean
   totp_enabled: boolean
   last_login_at: string | null
+  permissions: string[]
 }
 
 export async function listPlatformAdmins(): Promise<PlatformAdminRow[]> {
   const admin = createAdminClient()
   const { data } = await admin
     .from('platform_admins')
-    .select('id, email, role, is_active, totp_enabled, last_login_at')
+    .select('id, email, role, is_active, totp_enabled, last_login_at, permissions')
     .order('created_at')
-  return (data ?? []) as PlatformAdminRow[]
+  return (data ?? []).map((r) => ({ ...r, permissions: (r.permissions as string[]) ?? [] })) as PlatformAdminRow[]
 }
 
 export interface AuditEntry {

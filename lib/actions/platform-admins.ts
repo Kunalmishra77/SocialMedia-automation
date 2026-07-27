@@ -60,6 +60,22 @@ export async function setPlatformAdminRoleAction(formData: FormData): Promise<vo
   revalidatePath('/platform-admin/admins')
 }
 
+/** Save per-admin extra permission grants (beyond their role defaults). */
+export async function setPlatformAdminPermissionsAction(formData: FormData): Promise<void> {
+  const ctx = await requirePlatformAdmin()
+  if (!can(ctx, 'manage_platform_admins')) throw new Error('Forbidden')
+  const { ALL_PLATFORM_PERMISSIONS } = await import('@/lib/platform-admin/auth')
+
+  const id = String(formData.get('id'))
+  // Only store permissions explicitly checked (role defaults are applied at runtime).
+  const perms = ALL_PLATFORM_PERMISSIONS.filter((p) => formData.get(`perm_${p}`) === 'on')
+
+  const admin = createAdminClient()
+  const { data: row } = await admin.from('platform_admins').update({ permissions: perms }).eq('id', id).select('email').maybeSingle()
+  await writeAudit(ctx, 'platform_admin.permissions_change', { type: 'platform_admin', id, label: row?.email, metadata: { permissions: perms } })
+  revalidatePath('/platform-admin/admins')
+}
+
 export async function setPlatformAdminActiveAction(formData: FormData): Promise<void> {
   const ctx = await requirePlatformAdmin()
   if (!can(ctx, 'manage_platform_admins')) throw new Error('Forbidden')

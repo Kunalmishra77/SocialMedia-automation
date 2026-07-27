@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
-import { requirePlatformAdmin, can, PLATFORM_ROLE_PERMISSIONS, type PlatformRole } from '@/lib/platform-admin/auth'
+import { requirePlatformAdmin, can, PLATFORM_ROLE_PERMISSIONS, ALL_PLATFORM_PERMISSIONS, type PlatformRole } from '@/lib/platform-admin/auth'
 import { listPlatformAdmins } from '@/lib/platform-admin/metrics'
-import { setPlatformAdminActiveAction, setPlatformAdminRoleAction } from '@/lib/actions/platform-admins'
+import { setPlatformAdminActiveAction, setPlatformAdminRoleAction, setPlatformAdminPermissionsAction } from '@/lib/actions/platform-admins'
 import { AddAdminForm } from './add-admin-form'
 
 const ROLES: { key: PlatformRole; label: string; desc: string }[] = [
@@ -86,6 +86,38 @@ export default async function AdminsPage() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Granular per-admin permission overrides */}
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-5">
+        <h2 className="mb-1 text-sm font-semibold text-zinc-300">Granular permissions</h2>
+        <p className="mb-3 text-xs text-zinc-500">Role defaults are always applied (shown locked). Toggle extra grants beyond the role.</p>
+        <div className="space-y-2">
+          {admins.map((a) => {
+            const roleDefaults = PLATFORM_ROLE_PERMISSIONS[a.role as PlatformRole] ?? []
+            return (
+              <details key={a.id} className="rounded-lg border border-zinc-800 bg-zinc-950/50">
+                <summary className="cursor-pointer px-3 py-2 text-sm text-zinc-200">{a.email} <span className="text-xs capitalize text-zinc-500">· {a.role.replace('platform_', '')}</span></summary>
+                <form action={setPlatformAdminPermissionsAction} className="border-t border-zinc-800 p-3">
+                  <input type="hidden" name="id" value={a.id} />
+                  <div className="grid gap-1.5 sm:grid-cols-2">
+                    {ALL_PLATFORM_PERMISSIONS.map((p) => {
+                      const byRole = roleDefaults.includes(p)
+                      const checked = byRole || a.permissions.includes(p)
+                      return (
+                        <label key={p} className={`flex items-center gap-2 text-xs ${byRole ? 'text-zinc-500' : 'text-zinc-300'}`}>
+                          <input type="checkbox" name={`perm_${p}`} defaultChecked={checked} disabled={byRole} className="accent-indigo-500" />
+                          {p.replace(/_/g, ' ')}{byRole && <span className="text-[10px] text-zinc-600">(role)</span>}
+                        </label>
+                      )
+                    })}
+                  </div>
+                  <button className="mt-3 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500">Save permissions</button>
+                </form>
+              </details>
+            )
+          })}
+        </div>
       </div>
 
       {/* RBAC reference */}

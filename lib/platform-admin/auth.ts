@@ -24,11 +24,12 @@ export type PlatformPermission =
   | 'view_audit_log'
   | 'view_system_health'
 
-const ALL: PlatformPermission[] = [
+export const ALL_PLATFORM_PERMISSIONS: PlatformPermission[] = [
   'view_workspaces', 'manage_workspaces', 'manage_billing', 'impersonate',
   'impersonate_full', 'manage_users', 'broadcast', 'manage_feature_flags',
   'view_usage', 'manage_platform_admins', 'view_audit_log', 'view_system_health',
 ]
+const ALL = ALL_PLATFORM_PERMISSIONS
 
 export const PLATFORM_ROLE_PERMISSIONS: Record<PlatformRole, PlatformPermission[]> = {
   platform_owner: ALL,
