@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, MessagesSquare, Users, Target, Megaphone, CalendarDays,
   Workflow, BarChart3, BookOpen, Sparkles, ShoppingBag, Megaphone as AdsIcon,
-  UserCog, Settings, ChevronsUpDown, LifeBuoy, CalendarCheck, type LucideIcon,
+  UserCog, Settings, ChevronsUpDown, LifeBuoy, CalendarCheck, Rocket, Plug,
+  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MembershipRole, WorkspaceMembership } from '@/lib/authz'
@@ -25,7 +26,11 @@ interface NavGroup {
 const GROUPS: NavGroup[] = [
   {
     label: '',
-    items: [{ label: 'Dashboard', href: '/', icon: LayoutDashboard, agentVisible: true }],
+    items: [
+      { label: 'Dashboard', href: '/', icon: LayoutDashboard, agentVisible: true },
+      { label: 'Setup Center', href: '/setup', icon: Rocket },
+      { label: 'Connected Accounts', href: '/accounts', icon: Plug },
+    ],
   },
   {
     label: 'Engage',

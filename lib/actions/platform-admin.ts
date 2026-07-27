@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePlatformAdmin, can, writeAudit } from '@/lib/platform-admin/auth'
+import { provisionOwnerWithSetPasswordLink } from '@/lib/auth-provisioning'
+import { sendMail, setPasswordEmailHtml } from '@/lib/email'
 
 const VALID_PLANS = ['free', 'starter', 'pro', 'enterprise']
 
@@ -17,39 +19,25 @@ function slugify(name: string): string {
  * make them super_admin. The client then logs in to their own portal (RLS-isolated).
  */
 export async function createClientAction(
-  _prev: { error?: string; credentials?: { email: string; password: string; loginUrl: string } },
+  _prev: { error?: string; credentials?: { email: string; setPasswordUrl: string | null; loginUrl: string } },
   formData: FormData,
-): Promise<{ error?: string; credentials?: { email: string; password: string; loginUrl: string } }> {
+): Promise<{ error?: string; credentials?: { email: string; setPasswordUrl: string | null; loginUrl: string } }> {
   const ctx = await requirePlatformAdmin()
   if (!can(ctx, 'manage_workspaces')) throw new Error('Forbidden')
 
   const workspaceName = String(formData.get('workspaceName') ?? '').trim()
   const ownerEmail = String(formData.get('ownerEmail') ?? '').trim().toLowerCase()
   const plan = String(formData.get('plan') ?? 'starter')
-  let password = String(formData.get('password') ?? '').trim()
 
   if (workspaceName.length < 2) return { error: 'Workspace name is too short' }
   if (!ownerEmail.includes('@')) return { error: 'Enter a valid owner email' }
   if (!VALID_PLANS.includes(plan)) return { error: 'Invalid plan' }
-  if (!password) password = Math.random().toString(36).slice(2, 6) + 'A' + Math.random().toString(36).slice(2, 6) + '9!'
-  if (password.length < 8) return { error: 'Password must be at least 8 characters' }
 
   const admin = createAdminClient()
 
-  // Create or reuse the owner user.
-  let userId: string
-  const { data: existingProfile } = await admin.from('profiles').select('id').eq('email', ownerEmail).maybeSingle()
-  if (existingProfile) {
-    userId = existingProfile.id
-  } else {
-    const { data: created, error: createErr } = await admin.auth.admin.createUser({
-      email: ownerEmail,
-      password,
-      email_confirm: true,
-    })
-    if (createErr || !created.user) return { error: createErr?.message ?? 'Could not create owner user' }
-    userId = created.user.id
-  }
+  // Create/reuse the owner user WITHOUT a plaintext password + mint a set-password link.
+  const prov = await provisionOwnerWithSetPasswordLink(admin, ownerEmail)
+  if (!prov) return { error: 'Could not create owner user' }
 
   // Unique slug.
   const baseSlug = slugify(workspaceName)
@@ -71,15 +59,23 @@ export async function createClientAction(
 
   await admin
     .from('workspace_members')
-    .upsert({ workspace_id: ws.id, user_id: userId, role: 'super_admin' }, { onConflict: 'workspace_id,user_id' })
+    .upsert({ workspace_id: ws.id, user_id: prov.userId, role: 'super_admin' }, { onConflict: 'workspace_id,user_id' })
+
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  if (prov.setPasswordUrl) {
+    await sendMail({
+      to: ownerEmail,
+      subject: `Your Socialflow workspace "${workspaceName}" is ready 🎉`,
+      html: setPasswordEmailHtml({ workspaceName, email: ownerEmail, setPasswordUrl: prov.setPasswordUrl }),
+    })
+  }
 
   await writeAudit(ctx, 'client.create', {
     type: 'workspace', id: ws.id, label: workspaceName, metadata: { ownerEmail, plan },
   })
 
   revalidatePath('/platform-admin/workspaces')
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  return { credentials: { email: ownerEmail, password, loginUrl: `${base}/login` } }
+  return { credentials: { email: ownerEmail, setPasswordUrl: prov.setPasswordUrl, loginUrl: `${base}/login` } }
 }
 
 export async function createAnnouncementAction(formData: FormData): Promise<void> {

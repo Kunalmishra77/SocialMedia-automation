@@ -67,4 +67,5 @@ export async function disconnectChannelAction(formData: FormData): Promise<void>
   const admin = createAdminClient()
   await admin.from('channel_accounts').delete().eq('id', id).eq('workspace_id', workspaceId)
   revalidatePath('/settings/channels')
+  revalidatePath('/accounts')
 }

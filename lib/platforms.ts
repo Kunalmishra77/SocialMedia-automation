@@ -48,8 +48,10 @@ export const PLATFORMS: PlatformDef[] = [
       { label: 'Comment → private DM', status: 'now' },
       { label: 'Auto-like comments', status: 'now' },
       { label: 'Follow-gate (verify follow)', status: 'now' },
-      { label: 'Post & Reel publish/schedule', status: 'now' },
-      { label: 'Story publish', status: 'approval' },
+      { label: 'Image post publish & schedule', status: 'now' },
+      { label: 'Reel / video publish', status: 'future' },
+      { label: 'Story publish', status: 'future' },
+      { label: 'Post insights & analytics', status: 'future' },
     ],
     credentials: [
       {
@@ -87,12 +89,12 @@ export const PLATFORMS: PlatformDef[] = [
     accent: '#1877F2',
     tagline: 'Page posts, comments, Messenger, lead forms',
     connect: 'oauth',
-    connectNote: 'Connect your Facebook Page with one click after approval (OAuth).',
+    connectNote: 'Facebook Page automation is on our roadmap — connection will open in an upcoming release.',
     capabilities: [
-      { label: 'Page post publish/schedule', status: 'now' },
-      { label: 'Comment auto-reply', status: 'now' },
-      { label: 'Messenger AI chatbot', status: 'now' },
-      { label: 'Lead form → CRM', status: 'now' },
+      { label: 'Page post publish/schedule', status: 'future' },
+      { label: 'Comment auto-reply', status: 'future' },
+      { label: 'Messenger AI chatbot', status: 'future' },
+      { label: 'Lead form → CRM', status: 'future' },
     ],
     credentials: [],
   },
@@ -106,8 +108,10 @@ export const PLATFORMS: PlatformDef[] = [
     capabilities: [
       { label: 'AI bot chat', status: 'now' },
       { label: 'Keyword auto-replies', status: 'now' },
-      { label: 'Channel post/schedule', status: 'now' },
-      { label: 'Group welcome/moderation', status: 'now' },
+      { label: 'Broadcasts', status: 'now' },
+      { label: 'Drip sequences', status: 'now' },
+      { label: 'Channel post/schedule', status: 'future' },
+      { label: 'Group welcome/moderation', status: 'future' },
     ],
     credentials: [
       {
@@ -133,11 +137,11 @@ export const PLATFORMS: PlatformDef[] = [
     accent: '#0A66C2',
     tagline: 'Company page posts + AI content',
     connect: 'oauth',
-    connectNote: 'Connect your Company Page after approval. LinkedIn limits automation to posting + comments (per policy).',
+    connectNote: 'AI content generation works today. Company-Page publishing is on our roadmap. LinkedIn policy forbids DM automation.',
     capabilities: [
-      { label: 'Company page post/schedule', status: 'now' },
       { label: 'AI content generation', status: 'now' },
-      { label: 'Comment monitoring/reply', status: 'approval' },
+      { label: 'Company page post/schedule', status: 'future' },
+      { label: 'Comment monitoring/reply', status: 'future' },
       { label: 'DM automation', status: 'no' },
     ],
     credentials: [],

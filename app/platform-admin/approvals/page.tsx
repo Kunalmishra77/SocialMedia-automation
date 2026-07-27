@@ -91,22 +91,23 @@ export default async function ApprovalsPage() {
         })}
       </div>
 
-      {recent && recent.some((r) => (r.onboarding_data as { approved_credentials?: unknown } | null)?.approved_credentials) && (
+      {recent && recent.some((r) => (r.onboarding_data as { activation?: unknown } | null)?.activation) && (
         <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-zinc-400">Recently activated — credentials</h2>
+          <h2 className="text-sm font-semibold text-zinc-400">Recently activated — set-password link</h2>
           {recent.map((r) => {
-            const c = (r.onboarding_data as { approved_credentials?: { email: string; password: string; loginUrl: string } } | null)?.approved_credentials
-            if (!c) return null
+            const a = (r.onboarding_data as { activation?: { email: string; setPasswordUrl: string | null } } | null)?.activation
+            if (!a) return null
             return (
               <div key={r.id} className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm">
                 <p className="mb-2 font-medium">{r.name}</p>
-                <div className="grid gap-1 font-mono text-xs text-zinc-300">
-                  <span>Login: {c.loginUrl}</span>
-                  <span>Email: {c.email}</span>
-                  <span>Password: {c.password}</span>
+                <div className="grid gap-1 text-xs text-zinc-300">
+                  <span>Email: <span className="font-mono">{a.email}</span></span>
+                  {a.setPasswordUrl
+                    ? <span className="break-all">Set-password link: <span className="font-mono text-zinc-400">{a.setPasswordUrl}</span></span>
+                    : <span className="text-amber-400">Link generation failed — ask the client to use “Forgot password?”.</span>}
                 </div>
                 <p className="mt-2 text-xs text-zinc-500">
-                  {process.env.RESEND_API_KEY ? 'Emailed to the client.' : 'Set RESEND_API_KEY to auto-email these. Share manually for now.'}
+                  A secure set-password email was sent. This one-time link expires — no password is stored. Share manually only if the email didn&apos;t arrive.
                 </p>
               </div>
             )

@@ -51,6 +51,28 @@ export async function sendMail(opts: { to: string; subject: string; html: string
   return false
 }
 
+/** Secure activation email — a one-time "set your password" link, never a password. */
+export function setPasswordEmailHtml(opts: {
+  workspaceName: string
+  email: string
+  setPasswordUrl: string
+}): string {
+  return `
+  <div style="font-family:system-ui,sans-serif;max-width:520px;margin:0 auto">
+    <div style="background:linear-gradient(135deg,#f9ce34,#ee2a7b 45%,#6228d7);padding:24px;border-radius:12px 12px 0 0">
+      <h1 style="color:#fff;margin:0;font-size:20px">Welcome to Socialflow 🎉</h1>
+    </div>
+    <div style="border:1px solid #eee;border-top:none;padding:24px;border-radius:0 0 12px 12px">
+      <p>Your workspace <b>${opts.workspaceName}</b> is now active.</p>
+      <p>To finish setup, create your password using the secure link below. It signs you in as <b>${opts.email}</b>.</p>
+      <p style="margin:24px 0">
+        <a href="${opts.setPasswordUrl}" style="background:#6228d7;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;display:inline-block">Set your password →</a>
+      </p>
+      <p style="color:#888;font-size:13px">This link expires and can only be used once. If it stops working, use “Forgot password?” on the login page.</p>
+    </div>
+  </div>`
+}
+
 export function credentialsEmailHtml(opts: {
   workspaceName: string
   email: string

@@ -6,14 +6,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePlatformAdmin, can, writeAudit } from '@/lib/platform-admin/auth'
 import { getPlan } from '@/lib/plans-server'
 import { encrypt } from '@/lib/crypto'
-import { sendMail, credentialsEmailHtml } from '@/lib/email'
+import { sendMail, setPasswordEmailHtml } from '@/lib/email'
+import { provisionOwnerWithSetPasswordLink } from '@/lib/auth-provisioning'
 import { razorpayConfigured, razorpayKeyId, createOrder, verifyPaymentSignature } from '@/lib/billing/razorpay'
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'client'
-}
-function genPassword(): string {
-  return randomBytes(4).toString('hex') + 'A' + randomBytes(3).toString('hex') + '9!'
 }
 function baseUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
@@ -248,28 +246,15 @@ export async function approveClientAction(formData: FormData): Promise<void> {
     .maybeSingle()
   if (!ws || ws.status !== 'pending_approval' || !ws.owner_email) return
 
-  // Create or reuse the owner user with a fresh password.
-  const password = genPassword()
-  let userId: string
-  const { data: existing } = await admin.from('profiles').select('id').eq('email', ws.owner_email).maybeSingle()
-  if (existing) {
-    userId = existing.id
-    await admin.auth.admin.updateUserById(userId, { password })
-  } else {
-    const { data: created, error } = await admin.auth.admin.createUser({
-      email: ws.owner_email,
-      password,
-      email_confirm: true,
-    })
-    if (error || !created.user) return
-    userId = created.user.id
-  }
+  // Create/reuse the owner user WITHOUT a plaintext password and mint a secure
+  // one-time set-password link. No password is ever emailed or stored.
+  const prov = await provisionOwnerWithSetPasswordLink(admin, ws.owner_email)
+  if (!prov) return
 
   await admin
     .from('workspace_members')
-    .upsert({ workspace_id: workspaceId, user_id: userId, role: 'super_admin' }, { onConflict: 'workspace_id,user_id' })
+    .upsert({ workspace_id: workspaceId, user_id: prov.userId, role: 'super_admin' }, { onConflict: 'workspace_id,user_id' })
 
-  const loginUrl = `${baseUrl()}/login`
   await admin
     .from('workspaces')
     .update({
@@ -277,15 +262,18 @@ export async function approveClientAction(formData: FormData): Promise<void> {
       plan: ws.selected_plan ?? 'pro',
       approved_at: new Date().toISOString(),
       approved_by: ctx.userId,
-      onboarding_data: { approved_credentials: { email: ws.owner_email, password, loginUrl } },
+      // Store the one-time set-password link (expiring) for manual re-share, never a password.
+      onboarding_data: { activation: { email: ws.owner_email, setPasswordUrl: prov.setPasswordUrl, sentAt: new Date().toISOString() } },
     })
     .eq('id', workspaceId)
 
-  await sendMail({
-    to: ws.owner_email,
-    subject: `Your Socialflow workspace "${ws.name}" is live 🎉`,
-    html: credentialsEmailHtml({ workspaceName: ws.name, email: ws.owner_email, password, loginUrl }),
-  })
+  if (prov.setPasswordUrl) {
+    await sendMail({
+      to: ws.owner_email,
+      subject: `Your Socialflow workspace "${ws.name}" is live 🎉`,
+      html: setPasswordEmailHtml({ workspaceName: ws.name, email: ws.owner_email, setPasswordUrl: prov.setPasswordUrl }),
+    })
+  }
 
   await writeAudit(ctx, 'client.approve', {
     type: 'workspace', id: workspaceId, label: ws.name, metadata: { plan: ws.selected_plan },
