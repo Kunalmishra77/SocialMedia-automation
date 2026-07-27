@@ -1,4 +1,4 @@
-import { IndianRupee, TrendingUp, Wallet, Clock } from 'lucide-react'
+import { IndianRupee, TrendingUp, Wallet, Clock, UserMinus } from 'lucide-react'
 import { requirePlatformAdmin, can } from '@/lib/platform-admin/auth'
 import { notFound } from 'next/navigation'
 import { getRevenue } from '@/lib/platform-admin/command-center'
@@ -20,11 +20,12 @@ export default async function RevenuePage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader title="Revenue & billing" subtitle="Subscription revenue derived from active plans + collected payments." />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Stat label="MRR" value={inr(r.mrr)} icon={IndianRupee} tone="brand" sub="monthly recurring" />
         <Stat label="ARR" value={inr(r.arr)} icon={TrendingUp} tone="brand" sub="annual run-rate" />
         <Stat label="Collected" value={inr(r.collected)} icon={Wallet} tone="positive" />
         <Stat label="Pending" value={inr(r.pendingAmount)} icon={Clock} tone={r.pendingAmount ? 'warning' : 'default'} />
+        <Stat label="Churn" value={`${r.churnRate}%`} icon={UserMinus} tone={r.churnRate > 10 ? 'critical' : 'default'} sub={`${r.churnedCount} suspended`} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

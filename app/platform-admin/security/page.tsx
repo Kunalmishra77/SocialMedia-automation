@@ -3,17 +3,19 @@ import Link from 'next/link'
 import { ShieldCheck, Eye, ScrollText, Users } from 'lucide-react'
 import { requirePlatformAdmin, can } from '@/lib/platform-admin/auth'
 import { listAuditLog, listPlatformAdmins } from '@/lib/platform-admin/metrics'
-import { listImpersonationSessions } from '@/lib/platform-admin/command-center'
+import { listImpersonationSessions, listFailedLogins } from '@/lib/platform-admin/command-center'
+import { ShieldAlert } from 'lucide-react'
 import { PageHeader, Panel, Stat, StatusDot, timeAgo } from '../ui'
 
 export default async function SecurityPage() {
   const ctx = await requirePlatformAdmin()
   if (!can(ctx, 'view_audit_log')) notFound()
 
-  const [audit, sessions, admins] = await Promise.all([
+  const [audit, sessions, admins, logins] = await Promise.all([
     listAuditLog(40),
     listImpersonationSessions(20),
     listPlatformAdmins(),
+    listFailedLogins(20),
   ])
   const now = Date.now()
   const activeSessions = sessions.filter((s) => !s.ended_at && new Date(s.expires_at).getTime() > now).length
@@ -23,11 +25,25 @@ export default async function SecurityPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader title="Security center" subtitle="Audit trail, impersonation sessions and operator access." />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-4">
         <Stat label="Platform admins" value={admins.length} icon={Users} sub={`${withTotp} with 2FA`} />
         <Stat label="Active impersonations" value={activeSessions} icon={Eye} tone={activeSessions ? 'warning' : 'default'} />
+        <Stat label="Failed logins (24h)" value={logins.failed24h} icon={ShieldAlert} tone={logins.failed24h > 5 ? 'critical' : logins.failed24h ? 'warning' : 'default'} />
         <Stat label="Audit events shown" value={audit.length} icon={ScrollText} />
       </div>
+
+      {logins.rows.length > 0 && (
+        <Panel title="Recent failed logins">
+          <div className="divide-y divide-zinc-800">
+            {logins.rows.map((l, i) => (
+              <div key={i} className="flex items-center justify-between py-2 text-sm">
+                <span className="text-zinc-300">{l.email ?? 'unknown'} <span className="text-xs text-zinc-500">{l.ip ?? ''}</span></span>
+                <span className="text-xs text-zinc-500">{l.reason ?? 'failed'} · {timeAgo(l.attempted_at)}</span>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Operators" right={<Link href="/platform-admin/admins" className="text-xs text-indigo-400 hover:underline">Manage</Link>}>

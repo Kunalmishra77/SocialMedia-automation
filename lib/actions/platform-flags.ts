@@ -4,6 +4,31 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePlatformAdmin, can, writeAudit } from '@/lib/platform-admin/auth'
 
+/** Set a per-workspace override for a feature flag. */
+export async function setFlagOverrideAction(formData: FormData): Promise<void> {
+  const ctx = await requirePlatformAdmin()
+  if (!can(ctx, 'manage_feature_flags')) throw new Error('Forbidden')
+  const flagKey = String(formData.get('flag_key') ?? '')
+  const workspaceId = String(formData.get('workspace_id') ?? '')
+  const enabled = String(formData.get('enabled') ?? 'true') === 'true'
+  if (!flagKey || !workspaceId) return
+  const admin = createAdminClient()
+  await admin.from('feature_flag_overrides').upsert({ flag_key: flagKey, workspace_id: workspaceId, enabled }, { onConflict: 'flag_key,workspace_id' })
+  await writeAudit(ctx, 'feature_flag.override', { type: 'feature_flag', label: flagKey, metadata: { workspaceId, enabled } })
+  revalidatePath('/platform-admin/feature-flags')
+}
+
+export async function removeFlagOverrideAction(formData: FormData): Promise<void> {
+  const ctx = await requirePlatformAdmin()
+  if (!can(ctx, 'manage_feature_flags')) throw new Error('Forbidden')
+  const flagKey = String(formData.get('flag_key') ?? '')
+  const workspaceId = String(formData.get('workspace_id') ?? '')
+  const admin = createAdminClient()
+  await admin.from('feature_flag_overrides').delete().eq('flag_key', flagKey).eq('workspace_id', workspaceId)
+  await writeAudit(ctx, 'feature_flag.override_remove', { type: 'feature_flag', label: flagKey, metadata: { workspaceId } })
+  revalidatePath('/platform-admin/feature-flags')
+}
+
 export async function upsertFlagAction(formData: FormData): Promise<void> {
   const ctx = await requirePlatformAdmin()
   if (!can(ctx, 'manage_feature_flags')) throw new Error('Forbidden')

@@ -1,10 +1,22 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getMemberships, generateUniqueSlug } from '@/lib/authz'
 import { signupSchema, loginSchema, createWorkspaceSchema } from '@/lib/validators/auth'
+
+/** Record a login attempt (security center). Never throws into the caller. */
+async function logLoginAttempt(email: string, success: boolean, reason?: string) {
+  try {
+    const h = await headers()
+    const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip') || null
+    await createAdminClient().from('login_attempts').insert({
+      email, success, reason: reason ?? null, ip, user_agent: h.get('user-agent')?.slice(0, 300) ?? null,
+    })
+  } catch { /* best-effort */ }
+}
 
 export interface ActionState {
   error?: string
@@ -59,7 +71,11 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
 
   const supabase = await createClient()
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-  if (error) return { error: 'Invalid email or password' }
+  if (error) {
+    await logLoginAttempt(email, false, 'invalid_credentials')
+    return { error: 'Invalid email or password' }
+  }
+  await logLoginAttempt(email, true)
 
   // Same login for everyone — platform admins land on the operator console,
   // clients land on their workspace. No separate URL.
@@ -69,7 +85,10 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     .select('is_active')
     .eq('user_id', data.user.id)
     .maybeSingle()
-  if (pa?.is_active) redirect('/platform-admin')
+  if (pa?.is_active) {
+    await admin.from('platform_admins').update({ last_login_at: new Date().toISOString() }).eq('user_id', data.user.id)
+    redirect('/platform-admin')
+  }
 
   const memberships = await getMemberships(data.user.id)
   if (memberships.length === 0) redirect('/workspace/new')

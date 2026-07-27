@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { requirePlatformAdmin } from '@/lib/platform-admin/auth'
 import { logoutAction } from '@/lib/actions/auth'
+import { CommandPalette } from './command-palette'
 
 const NAV_GROUPS = [
   {
@@ -59,6 +60,7 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
 
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-950 text-zinc-100">
+      <CommandPalette />
       <aside className="flex w-60 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
         <div className="flex h-14 items-center gap-2 border-b border-zinc-800 px-4">
           <ShieldCheck className="h-5 w-5 text-emerald-400" />
@@ -102,8 +104,9 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
             <input
               name="q"
               placeholder="Search clients, tickets, operators…"
-              className="h-8 w-full rounded-md border border-zinc-800 bg-zinc-950 pl-8 pr-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-700 focus:outline-none"
+              className="h-8 w-full rounded-md border border-zinc-800 bg-zinc-950 pl-8 pr-12 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-700 focus:outline-none"
             />
+            <kbd className="pointer-events-none absolute right-2 top-1.5 rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-500">⌘K</kbd>
           </form>
           <form action={logoutAction}>
             <button type="submit" className="shrink-0 text-sm text-zinc-400 hover:text-white">

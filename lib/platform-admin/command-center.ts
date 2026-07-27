@@ -181,6 +181,8 @@ export interface RevenueReport {
   arr: number
   collected: number
   pendingAmount: number
+  churnedCount: number
+  churnRate: number
   byPlan: { plan: string; price: number; active: number; mrr: number; share: number }[]
   topClients: { name: string; plan: string; mrr: number }[]
   payments: { name: string; amount: number | null; status: string; at: string | null }[]
@@ -198,10 +200,14 @@ export async function getRevenue(): Promise<RevenueReport> {
   const planActive: Record<string, number> = {}
   let collected = 0
   let pendingAmount = 0
+  let activeCount = 0
+  let churnedCount = 0
   const topClients: RevenueReport['topClients'] = []
   const payments: RevenueReport['payments'] = []
 
   for (const w of ws) {
+    if (w.status === 'active') activeCount++
+    if (w.status === 'suspended') churnedCount++
     if (w.status === 'active') {
       planActive[w.plan] = (planActive[w.plan] ?? 0) + 1
       const price = priceMap[w.plan] ?? 0
@@ -227,7 +233,8 @@ export async function getRevenue(): Promise<RevenueReport> {
   topClients.sort((a, b) => b.mrr - a.mrr)
   payments.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''))
 
-  return { mrr, arr: mrr * 12, collected, pendingAmount, byPlan, topClients: topClients.slice(0, 8), payments: payments.slice(0, 20) }
+  const churnRate = activeCount + churnedCount > 0 ? Math.round((churnedCount / (activeCount + churnedCount)) * 100) : 0
+  return { mrr, arr: mrr * 12, collected, pendingAmount, churnedCount, churnRate, byPlan, topClients: topClients.slice(0, 8), payments: payments.slice(0, 20) }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -593,27 +600,32 @@ export interface SearchResults {
   workspaces: { id: string; name: string; owner_email: string | null; status: string; plan: string }[]
   tickets: { id: string; subject: string; status: string; workspace_name: string }[]
   admins: { email: string; role: string }[]
+  audit: { action: string; label: string | null; email: string; at: string }[]
 }
 
 export async function globalSearch(q: string): Promise<SearchResults> {
   const term = q.trim()
-  if (term.length < 2) return { workspaces: [], tickets: [], admins: [] }
+  if (term.length < 2) return { workspaces: [], tickets: [], admins: [], audit: [] }
   const admin = createAdminClient()
   const like = `%${term}%`
 
-  const [{ data: ws }, { data: tk }, { data: ad }] = await Promise.all([
+  const [{ data: ws }, { data: tk }, { data: ad }, { data: au }] = await Promise.all([
     admin.from('workspaces').select('id, name, owner_email, status, plan')
       .or(`name.ilike.${like},owner_email.ilike.${like},slug.ilike.${like},company.ilike.${like}`)
       .limit(15),
     admin.from('support_tickets').select('id, subject, status, workspaces(name)')
       .ilike('subject', like).limit(15),
     admin.from('platform_admins').select('email, role').ilike('email', like).limit(10),
+    admin.from('platform_audit_log').select('action, target_label, admin_email, occurred_at')
+      .or(`action.ilike.${like},target_label.ilike.${like},admin_email.ilike.${like}`)
+      .order('occurred_at', { ascending: false }).limit(12),
   ])
 
   return {
     workspaces: (ws ?? []).map((w) => ({ id: w.id as string, name: w.name as string, owner_email: w.owner_email as string | null, status: w.status as string, plan: w.plan as string })),
     tickets: (tk ?? []).map((t) => ({ id: t.id as string, subject: t.subject as string, status: t.status as string, workspace_name: (t.workspaces as unknown as { name: string } | null)?.name ?? '—' })),
     admins: (ad ?? []).map((a) => ({ email: a.email as string, role: a.role as string })),
+    audit: (au ?? []).map((a) => ({ action: a.action as string, label: a.target_label as string | null, email: a.admin_email as string, at: a.occurred_at as string })),
   }
 }
 
@@ -686,6 +698,24 @@ export async function getClient360(workspaceId: string): Promise<Client360> {
     activity: (activity ?? []).map((a) => ({ action: a.action as string, label: a.target_label as string | null, at: a.occurred_at as string })),
     lastImpersonation: (imp ?? [])[0]?.started_at ?? null,
   }
+}
+
+export interface LoginAttemptRow {
+  email: string | null
+  success: boolean
+  reason: string | null
+  ip: string | null
+  attempted_at: string
+}
+
+export async function listFailedLogins(limit = 20): Promise<{ rows: LoginAttemptRow[]; failed24h: number }> {
+  const admin = createAdminClient()
+  const dayAgo = new Date(Date.now() - 86400_000).toISOString()
+  const [{ data }, { count }] = await Promise.all([
+    admin.from('login_attempts').select('email, success, reason, ip, attempted_at').eq('success', false).order('attempted_at', { ascending: false }).limit(limit),
+    admin.from('login_attempts').select('id', { count: 'exact', head: true }).eq('success', false).gte('attempted_at', dayAgo),
+  ])
+  return { rows: (data ?? []) as LoginAttemptRow[], failed24h: count ?? 0 }
 }
 
 export interface ImpersonationRow {
