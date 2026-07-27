@@ -3,21 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard,
-  MessagesSquare,
-  Users,
-  Target,
-  Megaphone,
-  CalendarDays,
-  Workflow,
-  BarChart3,
-  BookOpen,
-  Sparkles,
-  ShoppingBag,
-  Megaphone as AdsIcon,
-  UserCog,
-  Settings,
-  type LucideIcon,
+  LayoutDashboard, MessagesSquare, Users, Target, Megaphone, CalendarDays,
+  Workflow, BarChart3, BookOpen, Sparkles, ShoppingBag, Megaphone as AdsIcon,
+  UserCog, Settings, ChevronsUpDown, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MembershipRole, WorkspaceMembership } from '@/lib/authz'
@@ -27,33 +15,60 @@ interface NavItem {
   label: string
   href: string
   icon: LucideIcon
-  /** Hidden for the `agent` role (assignment-isolated). */
   agentVisible?: boolean
 }
+interface NavGroup {
+  label: string
+  items: NavItem[]
+}
 
-const NAV: NavItem[] = [
-  { label: 'Dashboard', href: '/', icon: LayoutDashboard, agentVisible: true },
-  { label: 'Inbox', href: '/conversations', icon: MessagesSquare, agentVisible: true },
-  { label: 'Contacts', href: '/contacts', icon: Users, agentVisible: true },
-  { label: 'Leads', href: '/leads', icon: Target, agentVisible: true },
-  { label: 'Campaigns', href: '/campaigns', icon: Megaphone },
-  { label: 'Content', href: '/content', icon: CalendarDays },
-  { label: 'Automation', href: '/automation/flows', icon: Workflow },
-  { label: 'Influencers', href: '/influencers', icon: Sparkles },
-  { label: 'Commerce', href: '/commerce/products', icon: ShoppingBag },
-  { label: 'Ads', href: '/ads', icon: AdsIcon },
-  { label: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { label: 'Knowledge', href: '/knowledge-base', icon: BookOpen },
-  { label: 'Team', href: '/team', icon: UserCog },
-  { label: 'Settings', href: '/settings', icon: Settings },
+const GROUPS: NavGroup[] = [
+  {
+    label: '',
+    items: [{ label: 'Dashboard', href: '/', icon: LayoutDashboard, agentVisible: true }],
+  },
+  {
+    label: 'Engage',
+    items: [
+      { label: 'Inbox', href: '/conversations', icon: MessagesSquare, agentVisible: true },
+      { label: 'Contacts', href: '/contacts', icon: Users, agentVisible: true },
+      { label: 'Leads', href: '/leads', icon: Target, agentVisible: true },
+    ],
+  },
+  {
+    label: 'Grow',
+    items: [
+      { label: 'Campaigns', href: '/campaigns', icon: Megaphone },
+      { label: 'Content', href: '/content', icon: CalendarDays },
+      { label: 'Analytics', href: '/analytics', icon: BarChart3 },
+    ],
+  },
+  {
+    label: 'Automate',
+    items: [
+      { label: 'Automation', href: '/automation/flows', icon: Workflow },
+      { label: 'Knowledge', href: '/knowledge-base', icon: BookOpen },
+    ],
+  },
+  {
+    label: 'Manage',
+    items: [
+      { label: 'Influencers', href: '/influencers', icon: Sparkles },
+      { label: 'Commerce', href: '/commerce/products', icon: ShoppingBag },
+      { label: 'Ads', href: '/ads', icon: AdsIcon },
+    ],
+  },
+  {
+    label: '',
+    items: [
+      { label: 'Team', href: '/team', icon: UserCog },
+      { label: 'Settings', href: '/settings', icon: Settings },
+    ],
+  },
 ]
 
 export function Sidebar({
-  workspaceName,
-  plan,
-  role,
-  memberships = [],
-  activeWorkspaceId,
+  workspaceName, plan, role, memberships = [], activeWorkspaceId,
 }: {
   workspaceName: string
   plan: string
@@ -62,59 +77,76 @@ export function Sidebar({
   activeWorkspaceId?: string
 }) {
   const pathname = usePathname()
-  const items = role === 'agent' ? NAV.filter((i) => i.agentVisible) : NAV
   const canSwitch = memberships.length > 1
+  const isAgent = role === 'agent'
+
+  const filterGroup = (g: NavGroup) => ({
+    ...g,
+    items: isAgent ? g.items.filter((i) => i.agentVisible) : g.items,
+  })
+  const groups = GROUPS.map(filterGroup).filter((g) => g.items.length > 0)
 
   return (
-    <aside className="flex h-screen w-60 shrink-0 flex-col border-r border-border bg-card">
-      <div className="flex h-14 items-center gap-2 border-b border-border px-4">
-        <span className="brand-gradient-text text-base font-bold">◐ Socialflow</span>
+    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-border bg-card">
+      {/* Brand */}
+      <div className="flex h-16 items-center gap-2 px-5">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg brand-gradient text-sm font-bold text-white">◐</span>
+        <span className="text-base font-bold tracking-tight">Socialflow</span>
       </div>
 
-      <div className="border-b border-border px-4 py-3">
+      {/* Workspace card */}
+      <div className="mx-3 mb-2 rounded-xl border border-border bg-muted/40 p-3">
         {canSwitch ? (
-          <form action={switchWorkspaceAction}>
+          <form action={switchWorkspaceAction} className="relative">
             <select
               name="workspaceId"
               defaultValue={activeWorkspaceId}
               onChange={(e) => e.currentTarget.form?.requestSubmit()}
-              className="w-full truncate rounded-md border border-border bg-background px-2 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full cursor-pointer appearance-none truncate bg-transparent pr-5 text-sm font-semibold outline-none"
             >
               {memberships.map((m) => (
-                <option key={m.workspaceId} value={m.workspaceId}>
-                  {m.name}
-                </option>
+                <option key={m.workspaceId} value={m.workspaceId}>{m.name}</option>
               ))}
             </select>
+            <ChevronsUpDown className="pointer-events-none absolute right-0 top-0.5 h-4 w-4 text-muted-foreground" />
           </form>
         ) : (
           <p className="truncate text-sm font-semibold">{workspaceName}</p>
         )}
-        <p className="mt-1 text-xs capitalize text-muted-foreground">
-          {plan} plan · {role.replace('_', ' ')}
-        </p>
+        <div className="mt-1 flex items-center gap-1.5">
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">{plan}</span>
+          <span className="text-[11px] capitalize text-muted-foreground">{role.replace('_', ' ')}</span>
+        </div>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-2">
-        {items.map((item) => {
-          const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
-          const Icon = item.icon
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                active
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          )
-        })}
+      {/* Nav */}
+      <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-2">
+        {groups.map((g, gi) => (
+          <div key={gi}>
+            {g.label && <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{g.label}</p>}
+            <div className="space-y-0.5">
+              {g.items.map((item) => {
+                const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
+                const Icon = item.icon
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                      active
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    )}
+                  >
+                    <Icon className={cn('h-[18px] w-[18px]', active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
     </aside>
   )
