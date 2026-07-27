@@ -1,24 +1,30 @@
 import { notFound } from 'next/navigation'
 import { Network, Gauge, KeyRound, RefreshCw, AlertTriangle } from 'lucide-react'
 import { requirePlatformAdmin, can } from '@/lib/platform-admin/auth'
-import { getMetaUsage } from '@/lib/platform-admin/meta-monitor'
-import { PageHeader, Panel, Stat, Bar, StatusDot } from '../ui'
-
-// Live-probes Meta on each load — don't cache.
-export const dynamic = 'force-dynamic'
+import { getCachedMetaHealth } from '@/lib/platform-admin/meta-monitor'
+import { refreshMetaHealthAction } from '@/lib/actions/platform-admin'
+import { PageHeader, Panel, Stat, Bar, StatusDot, timeAgo } from '../ui'
 
 export default async function MetaMonitorPage() {
   const ctx = await requirePlatformAdmin()
   if (!can(ctx, 'view_system_health')) notFound()
-  const m = await getMetaUsage()
+  const m = await getCachedMetaHealth() // cached — no live API calls on load
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <PageHeader
         title="Meta API monitor"
-        subtitle="Live rate-limit usage + token health across every connected Instagram/Facebook account."
-        action={<a href="/platform-admin/meta" className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"><RefreshCw className="h-4 w-4" />Re-probe</a>}
+        subtitle="Rate-limit usage + token health across every connected Instagram/Facebook account."
+        action={
+          <form action={refreshMetaHealthAction}>
+            <button className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"><RefreshCw className="h-4 w-4" />Check now</button>
+          </form>
+        }
       />
+
+      <p className="text-xs text-zinc-500">
+        {m.lastCheckedAt ? <>Last checked {timeAgo(m.lastCheckedAt)} · auto-probed every 15 min</> : 'Not probed yet — click “Check now” or wait for the scheduled probe.'}
+      </p>
 
       {!m.configured && (
         <div className="rounded-lg border border-amber-900/50 bg-amber-950/30 px-4 py-2.5 text-sm text-amber-300">

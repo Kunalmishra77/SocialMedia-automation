@@ -231,6 +231,114 @@ export async function getRevenue(): Promise<RevenueReport> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Payments (provider-agnostic — derived from workspace payment fields)
+// ─────────────────────────────────────────────────────────────
+
+export interface PaymentsReport {
+  collected: number
+  pendingAmount: number
+  successCount: number
+  pendingCount: number
+  transactions: { name: string; amount: number | null; status: string; provider: string; plan: string | null; at: string | null }[]
+}
+
+export async function getPayments(filter?: string): Promise<PaymentsReport> {
+  const admin = createAdminClient()
+  const { data: rows } = await admin
+    .from('workspaces')
+    .select('name, status, selected_plan, payment_status, payment_amount, submitted_at, approved_at')
+    .order('submitted_at', { ascending: false })
+
+  let collected = 0
+  let pendingAmount = 0
+  let successCount = 0
+  let pendingCount = 0
+  const transactions: PaymentsReport['transactions'] = []
+
+  for (const w of rows ?? []) {
+    const paid = w.payment_status === 'demo_paid' || w.payment_status === 'paid'
+    const pending = w.status === 'pending_approval'
+    if (paid && w.payment_amount) { collected += Number(w.payment_amount); successCount++ }
+    if (pending && w.payment_amount) { pendingAmount += Number(w.payment_amount); pendingCount++ }
+    if (w.payment_amount || w.payment_status !== 'unpaid') {
+      const provider = w.payment_status === 'demo_paid' ? 'demo' : w.payment_status === 'paid' ? 'razorpay' : '—'
+      const status = pending ? 'pending' : paid ? 'success' : 'unpaid'
+      if (!filter || filter === status) {
+        transactions.push({ name: w.name, amount: w.payment_amount, status, provider, plan: w.selected_plan, at: w.approved_at ?? w.submitted_at })
+      }
+    }
+  }
+  transactions.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''))
+  return { collected, pendingAmount, successCount, pendingCount, transactions: transactions.slice(0, 100) }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Onboarding funnel (where each client is stuck)
+// ─────────────────────────────────────────────────────────────
+
+const FUNNEL_STAGES = ['created', 'link_opened', 'platforms', 'submitted', 'pending_approval', 'active'] as const
+export type FunnelStage = (typeof FUNNEL_STAGES)[number]
+
+export interface OnboardingClient {
+  id: string
+  name: string
+  owner_email: string | null
+  stage: FunnelStage
+  plan: string | null
+  payment_status: string | null
+  platforms: number
+  created_at: string
+  submitted_at: string | null
+}
+
+export interface OnboardingReport {
+  counts: Record<FunnelStage, number>
+  clients: OnboardingClient[]
+}
+
+export async function getOnboardingFunnel(): Promise<OnboardingReport> {
+  const admin = createAdminClient()
+  const { data: rows } = await admin
+    .from('workspaces')
+    .select('id, name, owner_email, status, selected_plan, payment_status, selected_platforms, onboarding_data, created_at, submitted_at')
+    .in('status', ['onboarding', 'pending_approval', 'active'])
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  const counts = { created: 0, link_opened: 0, platforms: 0, submitted: 0, pending_approval: 0, active: 0 } as Record<FunnelStage, number>
+  const clients: OnboardingClient[] = []
+
+  for (const w of rows ?? []) {
+    const platforms = ((w.selected_platforms as string[] | null) ?? []).length
+    const od = (w.onboarding_data as Record<string, unknown> | null) ?? {}
+    let stage: FunnelStage
+    if (w.status === 'active') stage = 'active'
+    else if (w.status === 'pending_approval') stage = 'pending_approval'
+    else if (w.submitted_at) stage = 'submitted'
+    else if (platforms > 0) stage = 'platforms'
+    else if (od.link_opened) stage = 'link_opened'
+    else stage = 'created'
+
+    // Only show in-flight (not long-active) clients on the funnel, but count active.
+    counts[stage]++
+    if (w.status !== 'active') {
+      clients.push({
+        id: w.id as string,
+        name: w.name as string,
+        owner_email: w.owner_email as string | null,
+        stage,
+        plan: w.selected_plan as string | null,
+        payment_status: w.payment_status as string | null,
+        platforms,
+        created_at: w.created_at as string,
+        submitted_at: w.submitted_at as string | null,
+      })
+    }
+  }
+  return { counts, clients }
+}
+
+// ─────────────────────────────────────────────────────────────
 // Analytics
 // ─────────────────────────────────────────────────────────────
 

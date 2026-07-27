@@ -63,6 +63,9 @@ SELECT cron.schedule('scheduled-reports', '0 9 * * *', $$SELECT call_cron_route(
 -- 9. Publish scheduled platform announcements (every 5 minutes)
 SELECT cron.schedule('publish-announcements', '*/5 * * * *', $$SELECT call_cron_route('/api/cron/publish-announcements')$$);
 
+-- 10. Probe Meta API health into the cache (every 15 minutes)
+SELECT cron.schedule('probe-meta-health', '*/15 * * * *', $$SELECT call_cron_route('/api/cron/probe-meta-health')$$);
+
 -- 9. Activity log cleanup (daily at 5am UTC — delete rows > 90 days)
 SELECT cron.schedule('cleanup-activity-log', '0 5 * * *',
   $$DELETE FROM activity_log WHERE occurred_at < NOW() - INTERVAL '90 days'$$);

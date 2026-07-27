@@ -5,6 +5,16 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePlatformAdmin, can, writeAudit } from '@/lib/platform-admin/auth'
 import { provisionOwnerWithSetPasswordLink } from '@/lib/auth-provisioning'
 import { sendMail, setPasswordEmailHtml } from '@/lib/email'
+import { refreshMetaHealthCache } from '@/lib/platform-admin/meta-monitor'
+
+/** On-demand Meta health probe (the "Check Now" button). */
+export async function refreshMetaHealthAction(): Promise<void> {
+  const ctx = await requirePlatformAdmin()
+  if (!can(ctx, 'view_system_health')) throw new Error('Forbidden')
+  await refreshMetaHealthCache()
+  await writeAudit(ctx, 'meta.health_probe', { type: 'meta' })
+  revalidatePath('/platform-admin/meta')
+}
 
 const VALID_PLANS = ['free', 'starter', 'pro', 'enterprise']
 

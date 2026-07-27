@@ -7,6 +7,8 @@ const GRAPH = 'https://graph.instagram.com/v24.0'
 const DAY = 86400_000
 
 export interface MetaChannelProbe {
+  channelAccountId: string
+  workspaceId: string
   workspace: string
   channel: string
   handle: string | null
@@ -15,6 +17,7 @@ export interface MetaChannelProbe {
   latencyMs: number
   tokenState: 'ok' | 'expiring' | 'expired' | 'unknown'
   expiresAt: string | null
+  appUsage?: { callCount: number; cpuTime: number; totalTime: number } | null
 }
 
 export interface MetaUsage {
@@ -60,7 +63,7 @@ export async function getMetaUsage(): Promise<MetaUsage> {
 
   const { data: rows } = await admin
     .from('channel_accounts')
-    .select('external_id, handle, access_token, token_expires_at, channel, workspaces(name)')
+    .select('id, external_id, handle, access_token, token_expires_at, channel, workspace_id, workspaces(name)')
     .in('channel', ['instagram', 'facebook'])
     .eq('is_active', true)
     .limit(40)
@@ -70,8 +73,14 @@ export async function getMetaUsage(): Promise<MetaUsage> {
   let bucWarnings: MetaUsage['bucWarnings'] = []
 
   const channels: MetaChannelProbe[] = await Promise.all(
-    (rows ?? []).map(async (r) => {
-      const workspace = (r.workspaces as unknown as { name: string } | null)?.name ?? '—'
+    (rows ?? []).map(async (r): Promise<MetaChannelProbe> => {
+      const base = {
+        channelAccountId: r.id as string,
+        workspaceId: r.workspace_id as string,
+        workspace: (r.workspaces as unknown as { name: string } | null)?.name ?? '—',
+        channel: r.channel as string,
+        handle: r.handle as string | null,
+      }
       const expiresAt = (r.token_expires_at as string | null) ?? null
       const tokenState: MetaChannelProbe['tokenState'] = !expiresAt
         ? 'unknown'
@@ -81,7 +90,7 @@ export async function getMetaUsage(): Promise<MetaUsage> {
       const token = decryptToken(r.access_token as string | null)
       const id = r.external_id as string
       if (!token) {
-        return { workspace, channel: r.channel as string, handle: r.handle as string | null, ok: false, statusLabel: 'no token', latencyMs: 0, tokenState, expiresAt }
+        return { ...base, ok: false, statusLabel: 'no token', latencyMs: 0, tokenState, expiresAt, appUsage: null }
       }
 
       const t0 = Date.now()
@@ -96,12 +105,12 @@ export async function getMetaUsage(): Promise<MetaUsage> {
         if (usage && (!appUsage || usage.callCount > appUsage.callCount)) appUsage = usage
         bucWarnings = bucWarnings.concat(parseBuc(res.headers.get('x-business-use-case-usage')))
 
-        if (res.ok) return { workspace, channel: r.channel as string, handle: r.handle as string | null, ok: true, statusLabel: 'operational', latencyMs, tokenState, expiresAt }
+        if (res.ok) return { ...base, ok: true, statusLabel: 'operational', latencyMs, tokenState, expiresAt, appUsage: usage }
         const body = await res.json().catch(() => null)
         const msg = (body as { error?: { message?: string } } | null)?.error?.message ?? `HTTP ${res.status}`
-        return { workspace, channel: r.channel as string, handle: r.handle as string | null, ok: false, statusLabel: msg.slice(0, 60), latencyMs, tokenState, expiresAt }
+        return { ...base, ok: false, statusLabel: msg.slice(0, 60), latencyMs, tokenState, expiresAt, appUsage: usage }
       } catch {
-        return { workspace, channel: r.channel as string, handle: r.handle as string | null, ok: false, statusLabel: 'unreachable / timeout', latencyMs: Date.now() - t0, tokenState, expiresAt }
+        return { ...base, ok: false, statusLabel: 'unreachable / timeout', latencyMs: Date.now() - t0, tokenState, expiresAt, appUsage: null }
       }
     }),
   )
@@ -114,5 +123,81 @@ export async function getMetaUsage(): Promise<MetaUsage> {
     channels,
     activeChannels: channels.length,
     healthy: channels.filter((c) => c.ok).length,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Cached health — the console reads this (fast); a cron + "Check Now" refresh it.
+// ─────────────────────────────────────────────────────────────
+
+/** Run the live probe and persist results into meta_health_checks. Returns the fresh probe. */
+export async function refreshMetaHealthCache(): Promise<MetaUsage> {
+  const usage = await getMetaUsage()
+  const admin = createAdminClient()
+  const nowIso = new Date().toISOString()
+  for (const c of usage.channels) {
+    await admin.from('meta_health_checks').upsert({
+      channel_account_id: c.channelAccountId,
+      workspace_id: c.workspaceId,
+      channel: c.channel,
+      handle: c.handle,
+      ok: c.ok,
+      status_label: c.statusLabel,
+      latency_ms: c.latencyMs,
+      token_state: c.tokenState,
+      expires_at: c.expiresAt,
+      app_usage: c.appUsage ?? {},
+      checked_at: nowIso,
+    }, { onConflict: 'channel_account_id' })
+  }
+  return usage
+}
+
+export interface CachedMetaHealth extends MetaUsage {
+  lastCheckedAt: string | null
+}
+
+/** Read cached probes (no live API calls). */
+export async function getCachedMetaHealth(): Promise<CachedMetaHealth> {
+  const configured = !!process.env.INSTAGRAM_APP_ID && !!process.env.INSTAGRAM_APP_SECRET
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('meta_health_checks')
+    .select('channel_account_id, workspace_id, channel, handle, ok, status_label, latency_ms, token_state, expires_at, app_usage, checked_at, channel_accounts(workspaces(name))')
+    .order('checked_at', { ascending: false })
+    .limit(60)
+
+  let appUsage: MetaUsage['appUsage'] = null
+  let lastCheckedAt: string | null = null
+  const channels: MetaChannelProbe[] = (data ?? []).map((r) => {
+    const usage = (r.app_usage as { callCount?: number; cpuTime?: number; totalTime?: number } | null) ?? null
+    if (usage && typeof usage.callCount === 'number' && (!appUsage || usage.callCount > appUsage.callCount)) {
+      appUsage = { callCount: usage.callCount, cpuTime: usage.cpuTime ?? 0, totalTime: usage.totalTime ?? 0 }
+    }
+    if (!lastCheckedAt || (r.checked_at as string) > lastCheckedAt) lastCheckedAt = r.checked_at as string
+    return {
+      channelAccountId: r.channel_account_id as string,
+      workspaceId: r.workspace_id as string,
+      workspace: ((r.channel_accounts as unknown as { workspaces?: { name: string } } | null)?.workspaces?.name) ?? '—',
+      channel: r.channel as string,
+      handle: r.handle as string | null,
+      ok: r.ok as boolean,
+      statusLabel: (r.status_label as string) ?? '',
+      latencyMs: (r.latency_ms as number) ?? 0,
+      tokenState: (r.token_state as MetaChannelProbe['tokenState']) ?? 'unknown',
+      expiresAt: r.expires_at as string | null,
+      appUsage: null,
+    }
+  })
+
+  return {
+    configured,
+    appId: process.env.INSTAGRAM_APP_ID ?? null,
+    appUsage,
+    bucWarnings: [],
+    channels,
+    activeChannels: channels.length,
+    healthy: channels.filter((c) => c.ok).length,
+    lastCheckedAt,
   }
 }
