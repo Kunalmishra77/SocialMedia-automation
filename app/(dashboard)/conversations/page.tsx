@@ -4,6 +4,7 @@ import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { windowStatus, formatWindowLeft } from '@/lib/inbox'
 import { resolveConversationAction, reopenConversationAction, assignToMeAction } from '@/lib/actions/inbox'
+import { RealtimeRefresh } from '@/components/dashboard/realtime-refresh'
 import { Composer } from './composer'
 
 const STATUS_TABS = ['open', 'assigned', 'pending', 'resolved', 'snoozed']
@@ -65,6 +66,7 @@ export default async function ConversationsPage({
 
   return (
     <div className="flex h-[calc(100vh-7rem)] gap-4">
+      <RealtimeRefresh workspaceId={active.workspaceId} />
       {/* List */}
       <div className="flex w-80 shrink-0 flex-col rounded-lg border border-border bg-card">
         <div className="border-b border-border p-3">

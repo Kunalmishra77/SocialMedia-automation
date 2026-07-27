@@ -53,6 +53,22 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Website chat widget</CardTitle>
+          <CardDescription>Embed an AI chat widget on your website.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <pre className="overflow-x-auto rounded-md bg-muted/50 p-3 text-xs">
+{`<iframe src="${(process.env.NEXT_PUBLIC_APP_URL ?? '')}/widget/${active.workspaceId}"
+  style="position:fixed;bottom:20px;right:20px;width:380px;height:560px;
+  border:0;border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.18);z-index:9999">
+</iframe>`}
+          </pre>
+          <p className="mt-2 text-xs text-muted-foreground">Paste before &lt;/body&gt;. Uses your AI + knowledge base.</p>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader>
