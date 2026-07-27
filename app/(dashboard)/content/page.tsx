@@ -3,7 +3,9 @@ import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { deletePostAction } from '@/lib/actions/content'
 import Link from 'next/link'
+import { CalendarDays } from 'lucide-react'
 import { PageHeader } from '@/components/dashboard/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { CreatePost } from './create-post'
 import { ContentCalendar } from './content-calendar'
 
@@ -43,14 +45,17 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
 
       {isCalendar && <ContentCalendar posts={(posts ?? []) as never} />}
 
-      {!isCalendar && (
+      {!isCalendar && (!posts || posts.length === 0) && (
+        <EmptyState
+          icon={CalendarDays}
+          title="No content yet"
+          description="Use “New post” above to draft a post or reel. Let AI write the caption, then schedule it to publish automatically."
+        />
+      )}
+
+      {!isCalendar && posts && posts.length > 0 && (
       <div className="grid gap-3 sm:grid-cols-2">
-        {(!posts || posts.length === 0) && (
-          <p className="col-span-full py-10 text-center text-sm text-muted-foreground">
-            No posts yet. Create a draft or schedule your first post.
-          </p>
-        )}
-        {posts?.map((p) => (
+        {posts.map((p) => (
           <div key={p.id} className="rounded-lg border border-border bg-card p-4">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-xs uppercase text-muted-foreground">{p.type}</span>
