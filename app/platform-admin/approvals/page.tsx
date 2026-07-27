@@ -1,14 +1,15 @@
 import { requirePlatformAdmin } from '@/lib/platform-admin/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { approveClientAction } from '@/lib/actions/onboarding'
+import { approveClientAction, rejectClientAction } from '@/lib/actions/onboarding'
 import { planByKey } from '@/lib/plans'
+import { platformByKey } from '@/lib/platforms'
 
 export default async function ApprovalsPage() {
   await requirePlatformAdmin()
   const admin = createAdminClient()
   const { data: pending } = await admin
     .from('workspaces')
-    .select('id, name, owner_email, owner_name, owner_phone, company, selected_plan, payment_amount, submitted_at')
+    .select('id, name, owner_email, owner_name, owner_phone, company, selected_plan, selected_platforms, payment_amount, submitted_at')
     .eq('status', 'pending_approval')
     .order('submitted_at', { ascending: true })
 
@@ -50,6 +51,14 @@ export default async function ApprovalsPage() {
                     {w.owner_phone ? ` · ${w.owner_phone}` : ''}
                   </p>
                   {w.company && <p className="text-xs text-zinc-500">{w.company}</p>}
+                  {w.selected_platforms && w.selected_platforms.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {(w.selected_platforms as string[]).map((pk) => {
+                        const p = platformByKey(pk)
+                        return <span key={pk} className="rounded-full px-2 py-0.5 text-[11px] text-white" style={{ background: p?.accent ?? '#555' }}>{p?.name ?? pk}</span>
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-400">
@@ -65,6 +74,12 @@ export default async function ApprovalsPage() {
                   <input type="hidden" name="workspaceId" value={w.id} />
                   <button className="rounded-md bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-500">
                     Approve &amp; activate
+                  </button>
+                </form>
+                <form action={rejectClientAction}>
+                  <input type="hidden" name="workspaceId" value={w.id} />
+                  <button className="rounded-md border border-zinc-700 px-4 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800">
+                    Reject
                   </button>
                 </form>
               </div>

@@ -96,7 +96,35 @@ export async function getOnboardingState(token: string): Promise<{
   }
 }
 
-/** Public: client submits plan + demo payment → pending approval. */
+// field name → (provider, key_name) for encrypted storage
+const CRED_MAP: Record<string, { provider: string; key: string }> = {
+  meta_app_id: { provider: 'meta', key: 'app_id' },
+  meta_app_secret: { provider: 'meta', key: 'app_secret' },
+  telegram_bot_token: { provider: 'telegram', key: 'bot_token' },
+}
+
+async function persistSelection(
+  admin: ReturnType<typeof createAdminClient>,
+  workspaceId: string,
+  platformsCsv: string,
+  credsJson: string,
+): Promise<string[]> {
+  const platforms = platformsCsv ? platformsCsv.split(',').map((p) => p.trim()).filter(Boolean) : []
+  let creds: Record<string, string> = {}
+  try { creds = JSON.parse(credsJson || '{}') } catch { creds = {} }
+  for (const [field, value] of Object.entries(creds)) {
+    const v = String(value ?? '').trim()
+    const m = CRED_MAP[field]
+    if (!v || !m) continue
+    await admin.from('client_credentials').upsert(
+      { workspace_id: workspaceId, provider: m.provider, key_name: m.key, value_encrypted: encrypt(v) },
+      { onConflict: 'workspace_id,provider,key_name' },
+    )
+  }
+  return platforms
+}
+
+/** Public: client submits platforms + credentials + plan + demo payment → pending approval. */
 export async function submitOnboardingAction(
   _prev: { error?: string; ok?: boolean },
   formData: FormData,
@@ -115,31 +143,20 @@ export async function submitOnboardingAction(
   if (!ws) return { error: 'Invalid link' }
   if (ws.status !== 'onboarding') return { error: 'This application was already submitted.' }
 
-  // Optional client-provided app credentials (hybrid model) — stored encrypted.
-  const metaAppId = String(formData.get('meta_app_id') ?? '').trim()
-  const metaAppSecret = String(formData.get('meta_app_secret') ?? '').trim()
-  if (metaAppId) {
-    await admin.from('client_credentials').upsert(
-      { workspace_id: ws.id, provider: 'meta', key_name: 'app_id', value_encrypted: encrypt(metaAppId) },
-      { onConflict: 'workspace_id,provider,key_name' },
-    )
-  }
-  if (metaAppSecret) {
-    await admin.from('client_credentials').upsert(
-      { workspace_id: ws.id, provider: 'meta', key_name: 'app_secret', value_encrypted: encrypt(metaAppSecret) },
-      { onConflict: 'workspace_id,provider,key_name' },
-    )
-  }
+  const platforms = await persistSelection(
+    admin, ws.id, String(formData.get('platforms') ?? ''), String(formData.get('credentials') ?? '{}'),
+  )
 
   await admin
     .from('workspaces')
     .update({
       selected_plan: plan.key,
+      selected_platforms: platforms,
       payment_status: 'demo_paid',
       payment_amount: plan.price,
       status: 'pending_approval',
       submitted_at: new Date().toISOString(),
-      onboarding_data: { plan: plan.key, price: plan.price, demo_payment: true },
+      onboarding_data: { plan: plan.key, price: plan.price, demo_payment: true, platforms },
     })
     .eq('id', ws.id)
 
@@ -183,17 +200,38 @@ export async function confirmRazorpayPaymentAction(
   const { data: ws } = await admin.from('workspaces').select('id, status').eq('onboarding_token', token).maybeSingle()
   if (!ws || ws.status !== 'onboarding') return { error: 'Already submitted' }
 
+  const platforms = await persistSelection(
+    admin, ws.id, String(formData.get('platforms') ?? ''), String(formData.get('credentials') ?? '{}'),
+  )
+
   await admin.from('workspaces').update({
     selected_plan: plan.key,
+    selected_platforms: platforms,
     payment_status: 'paid',
     payment_amount: plan.price,
     status: 'pending_approval',
     submitted_at: new Date().toISOString(),
-    onboarding_data: { plan: plan.key, price: plan.price, razorpay_order_id: orderId, razorpay_payment_id: paymentId },
+    onboarding_data: { plan: plan.key, price: plan.price, platforms, razorpay_order_id: orderId, razorpay_payment_id: paymentId },
   }).eq('id', ws.id)
 
   revalidatePath('/platform-admin/approvals')
   return { ok: true }
+}
+
+/** Super Admin: reject/return a pending application (client can resubmit via the same link). */
+export async function rejectClientAction(formData: FormData): Promise<void> {
+  const ctx = await requirePlatformAdmin()
+  if (!can(ctx, 'manage_workspaces')) throw new Error('Forbidden')
+  const workspaceId = String(formData.get('workspaceId'))
+  const reason = String(formData.get('reason') ?? '').trim() || null
+  const admin = createAdminClient()
+  const { data: ws } = await admin.from('workspaces').select('name, onboarding_data').eq('id', workspaceId).maybeSingle()
+  await admin.from('workspaces').update({
+    status: 'onboarding',
+    onboarding_data: { ...(ws?.onboarding_data as object ?? {}), rejected_reason: reason, rejected_at: new Date().toISOString() },
+  }).eq('id', workspaceId)
+  await writeAudit(ctx, 'client.reject', { type: 'workspace', id: workspaceId, label: ws?.name ?? undefined, metadata: { reason } })
+  revalidatePath('/platform-admin/approvals')
 }
 
 /** Super Admin: approve a pending client → activate + create owner user + email credentials. */
