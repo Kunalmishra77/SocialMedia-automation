@@ -82,6 +82,31 @@ export async function createClientAction(
   return { credentials: { email: ownerEmail, password, loginUrl: `${base}/login` } }
 }
 
+export async function createAnnouncementAction(formData: FormData): Promise<void> {
+  const ctx = await requirePlatformAdmin()
+  if (!can(ctx, 'broadcast')) throw new Error('Forbidden')
+
+  const title = String(formData.get('title') ?? '').trim()
+  const body = String(formData.get('body') ?? '').trim()
+  const scope = String(formData.get('scope') ?? 'all') // all | starter | pro | enterprise
+  if (title.length < 3 || body.length < 3) throw new Error('Title and body are required')
+
+  const audience = scope === 'all' ? { scope: 'all' } : { scope: 'plan', plan: scope }
+
+  const admin = createAdminClient()
+  await admin.from('platform_announcements').insert({
+    title,
+    body,
+    audience,
+    channels: ['in_app'],
+    created_by: ctx.userId,
+    published_at: new Date().toISOString(),
+  })
+
+  await writeAudit(ctx, 'announcement.publish', { type: 'announcement', label: title, metadata: { scope } })
+  revalidatePath('/platform-admin/communication')
+}
+
 export async function suspendWorkspaceAction(formData: FormData): Promise<void> {
   const ctx = await requirePlatformAdmin()
   if (!can(ctx, 'manage_workspaces')) throw new Error('Forbidden')
