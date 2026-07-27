@@ -2,7 +2,7 @@ import Link from 'next/link'
 import {
   ShieldCheck, LayoutDashboard, Building2, ScrollText, Flag, Users, BadgeCheck,
   IndianRupee, BarChart3, Activity, Radio, Lock, LifeBuoy, Settings, Package,
-  Search, FileDown,
+  Search, FileDown, Network,
 } from 'lucide-react'
 import { requirePlatformAdmin } from '@/lib/platform-admin/auth'
 import { logoutAction } from '@/lib/actions/auth'
@@ -33,6 +33,7 @@ const NAV_GROUPS = [
     items: [
       { label: 'Support', href: '/platform-admin/support', icon: LifeBuoy },
       { label: 'System health', href: '/platform-admin/health', icon: Activity },
+      { label: 'Meta API', href: '/platform-admin/meta', icon: Network },
       { label: 'Communication', href: '/platform-admin/communication', icon: Radio },
       { label: 'Feature flags', href: '/platform-admin/feature-flags', icon: Flag },
     ],
