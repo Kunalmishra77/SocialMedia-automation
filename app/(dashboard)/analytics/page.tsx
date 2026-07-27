@@ -108,6 +108,17 @@ export default async function AnalyticsPage() {
           ))}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Reports &amp; export</CardTitle></CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          {['contacts', 'leads', 'conversations'].map((t) => (
+            <a key={t} href={`/api/export/${t}`} className="rounded-md border border-input px-3 py-1.5 text-sm capitalize hover:bg-muted">
+              Export {t} (CSV)
+            </a>
+          ))}
+        </CardContent>
+      </Card>
     </div>
   )
 }
