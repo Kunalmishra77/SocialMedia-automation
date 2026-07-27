@@ -23,7 +23,11 @@ export default async function SecurityPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <PageHeader title="Security center" subtitle="Audit trail, impersonation sessions and operator access." />
+      <PageHeader
+        title="Security center"
+        subtitle="Audit trail, impersonation sessions and operator access."
+        action={<Link href="/platform-admin/security/2fa" className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"><ShieldAlert className="h-4 w-4" />Manage your 2FA</Link>}
+      />
 
       <div className="grid gap-4 sm:grid-cols-4">
         <Stat label="Platform admins" value={admins.length} icon={Users} sub={`${withTotp} with 2FA`} />

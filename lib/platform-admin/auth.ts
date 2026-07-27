@@ -1,8 +1,9 @@
 import 'server-only'
 
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getUser } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isTwoFactorVerified } from '@/lib/platform-admin/2fa'
 
 export type PlatformRole =
   | 'platform_owner'
@@ -43,21 +44,22 @@ export interface PlatformAdminContext {
   email: string
   role: PlatformRole
   permissions: PlatformPermission[]
+  totpEnabled: boolean
 }
 
 /**
- * Gate for the /platform-admin area. Requires an authenticated user who is an
- * active platform admin. Returns 404 (not 403) if they aren't — hides the
- * area's existence from ordinary users.
+ * Resolve the platform-admin context WITHOUT enforcing 2FA. Returns 404 (not 403)
+ * if the user isn't an active platform admin — hides the area from ordinary users.
+ * Used by the 2FA enrollment + verification flows (which must run pre-gate).
  */
-export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {
+export async function resolvePlatformAdmin(): Promise<PlatformAdminContext> {
   const user = await getUser()
   if (!user) notFound()
 
   const admin = createAdminClient()
   const { data } = await admin
     .from('platform_admins')
-    .select('role, permissions, is_active')
+    .select('role, permissions, is_active, totp_enabled')
     .eq('user_id', user.id)
     .maybeSingle()
 
@@ -69,7 +71,19 @@ export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {
     new Set([...(PLATFORM_ROLE_PERMISSIONS[role] ?? []), ...((data.permissions ?? []) as PlatformPermission[])]),
   )
 
-  return { userId: user.id, email: user.email ?? '', role, permissions }
+  return { userId: user.id, email: user.email ?? '', role, permissions, totpEnabled: !!data.totp_enabled }
+}
+
+/**
+ * Gate for the /platform-admin area: active platform admin AND (if they've enabled
+ * 2FA) a valid 2FA session — otherwise redirect to /verify-2fa.
+ */
+export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {
+  const ctx = await resolvePlatformAdmin()
+  if (ctx.totpEnabled && !(await isTwoFactorVerified(ctx.userId))) {
+    redirect('/verify-2fa')
+  }
+  return ctx
 }
 
 export function can(ctx: PlatformAdminContext, permission: PlatformPermission): boolean {

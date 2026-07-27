@@ -71,7 +71,7 @@ export async function endImpersonationAction(): Promise<void> {
 
     if (session) {
       await writeAudit(
-        { userId: session.admin_user_id, email: '', role: 'platform_owner', permissions: [] },
+        { userId: session.admin_user_id, email: '', role: 'platform_owner', permissions: [], totpEnabled: false },
         'impersonate.end',
         { type: 'workspace', id: session.workspace_id },
       )
