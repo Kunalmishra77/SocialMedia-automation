@@ -4,6 +4,7 @@ import { sendTelegramMessage } from '@/lib/channels/telegram'
 import { getAIReply } from '@/lib/ai/reply'
 import { aiConfigured } from '@/lib/ai/client'
 import { applyInboxRules } from '@/lib/inbox-rules'
+import { runFlowsForDM } from '@/lib/flow-runner'
 
 /**
  * Telegram webhook. One endpoint per connected bot (channel_account id in the path).
@@ -110,6 +111,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   })
   // Duplicate delivery (same ig_message_id) — stop to avoid double auto-reply.
   if (insErr) return NextResponse.json({ ok: true })
+
+  // Custom flow builder (multi-step) runs first; if a flow matched, we're done.
+  if (text && account.access_token) {
+    const flowRan = await runFlowsForDM(admin, {
+      workspaceId, conversationId, contactId: contact.id, channel: 'telegram',
+      token: account.access_token, recipient: chatId, text, isFirstDm: !existing,
+    })
+    if (flowRan) return NextResponse.json({ ok: true })
+  }
 
   // Inbox rules (keyword auto-reply / label / assign) run before AI.
   if (text && account.access_token) {

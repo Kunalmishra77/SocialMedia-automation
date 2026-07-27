@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation'
 import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
+import Link from 'next/link'
 import { activateTemplateAction, toggleWorkflowAction, deleteWorkflowAction } from '@/lib/actions/workflows'
 import { WORKFLOW_TEMPLATES } from '@/lib/workflow-templates'
+import { createCustomFlowAction } from '@/lib/actions/flow-builder'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default async function AutomationPage() {
@@ -33,17 +35,24 @@ export default async function AutomationPage() {
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Your workflows</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-muted-foreground">Your workflows</h2>
+          <form action={createCustomFlowAction}>
+            <input type="hidden" name="name" value="New flow" />
+            <input type="hidden" name="trigger" value="first_dm" />
+            <button className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:brightness-110">+ Build a flow</button>
+          </form>
+        </div>
         <div className="space-y-2">
           {(!workflows || workflows.length === 0) && (
             <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              No workflows yet. Activate a template below to get started.
+              No workflows yet. Build a flow above or activate a template below.
             </p>
           )}
           {workflows?.map((w) => (
             <div key={w.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
               <div>
-                <p className="text-sm font-medium">{w.name}</p>
+                <Link href={`/automation/flows/${w.id}`} className="text-sm font-medium text-primary hover:underline">{w.name}</Link>
                 <p className="text-xs text-muted-foreground">
                   Trigger: {w.trigger_type.replace(/_/g, ' ')} · {w.run_count} runs
                 </p>
