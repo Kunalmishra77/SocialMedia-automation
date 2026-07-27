@@ -364,6 +364,7 @@ export interface Announcement {
   audience: Record<string, unknown>
   channels: string[]
   published_at: string | null
+  scheduled_for: string | null
   created_at: string
 }
 
@@ -371,7 +372,7 @@ export async function listAnnouncements(limit = 30): Promise<Announcement[]> {
   const admin = createAdminClient()
   const { data } = await admin
     .from('platform_announcements')
-    .select('id, title, body, audience, channels, published_at, created_at')
+    .select('id, title, body, audience, channels, published_at, scheduled_for, created_at')
     .order('created_at', { ascending: false })
     .limit(limit)
   return (data ?? []) as Announcement[]
@@ -391,13 +392,14 @@ export interface TicketRow {
   assigned_to: string | null
   created_at: string
   updated_at: string
+  first_response_at: string | null
 }
 
 export async function listTickets(filter?: { status?: string; priority?: string }): Promise<TicketRow[]> {
   const admin = createAdminClient()
   let q = admin
     .from('support_tickets')
-    .select('id, subject, category, priority, status, assigned_to, created_at, updated_at, workspaces(name)')
+    .select('id, subject, category, priority, status, assigned_to, created_at, updated_at, first_response_at, workspaces(name)')
     .order('updated_at', { ascending: false })
     .limit(200)
   if (filter?.status) q = q.eq('status', filter.status)
@@ -412,6 +414,7 @@ export async function listTickets(filter?: { status?: string; priority?: string 
     assigned_to: t.assigned_to as string | null,
     created_at: t.created_at as string,
     updated_at: t.updated_at as string,
+    first_response_at: t.first_response_at as string | null,
     workspace_name: (t.workspaces as unknown as { name: string } | null)?.name ?? '—',
   }))
 }
@@ -421,12 +424,14 @@ export interface TicketStats {
   inProgress: number
   urgent: number
   unassigned: number
+  slaBreached: number
   total: number
 }
 
 export async function getTicketStats(): Promise<TicketStats> {
+  const { slaStatus } = await import('@/lib/support-sla')
   const admin = createAdminClient()
-  const { data } = await admin.from('support_tickets').select('status, priority, assigned_to')
+  const { data } = await admin.from('support_tickets').select('status, priority, assigned_to, created_at, first_response_at')
   const rows = data ?? []
   return {
     total: rows.length,
@@ -434,6 +439,7 @@ export async function getTicketStats(): Promise<TicketStats> {
     inProgress: rows.filter((r) => r.status === 'in_progress').length,
     urgent: rows.filter((r) => r.priority === 'urgent' && !['resolved', 'closed'].includes(r.status)).length,
     unassigned: rows.filter((r) => !r.assigned_to && !['resolved', 'closed'].includes(r.status)).length,
+    slaBreached: rows.filter((r) => slaStatus(r.priority as string, r.created_at as string, r.first_response_at as string | null, ['resolved', 'closed'].includes(r.status as string)).breached).length,
   }
 }
 
@@ -446,7 +452,7 @@ export async function getTicket(id: string): Promise<TicketDetail | null> {
   const admin = createAdminClient()
   const { data: t } = await admin
     .from('support_tickets')
-    .select('id, subject, category, priority, status, assigned_to, created_at, updated_at, workspace_id, workspaces(name)')
+    .select('id, subject, category, priority, status, assigned_to, created_at, updated_at, first_response_at, workspace_id, workspaces(name)')
     .eq('id', id)
     .maybeSingle()
   if (!t) return null
@@ -464,9 +470,42 @@ export async function getTicket(id: string): Promise<TicketDetail | null> {
     assigned_to: t.assigned_to as string | null,
     created_at: t.created_at as string,
     updated_at: t.updated_at as string,
+    first_response_at: t.first_response_at as string | null,
     workspace_id: t.workspace_id as string,
     workspace_name: (t.workspaces as unknown as { name: string } | null)?.name ?? '—',
     messages: (msgs ?? []) as TicketDetail['messages'],
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Global search
+// ─────────────────────────────────────────────────────────────
+
+export interface SearchResults {
+  workspaces: { id: string; name: string; owner_email: string | null; status: string; plan: string }[]
+  tickets: { id: string; subject: string; status: string; workspace_name: string }[]
+  admins: { email: string; role: string }[]
+}
+
+export async function globalSearch(q: string): Promise<SearchResults> {
+  const term = q.trim()
+  if (term.length < 2) return { workspaces: [], tickets: [], admins: [] }
+  const admin = createAdminClient()
+  const like = `%${term}%`
+
+  const [{ data: ws }, { data: tk }, { data: ad }] = await Promise.all([
+    admin.from('workspaces').select('id, name, owner_email, status, plan')
+      .or(`name.ilike.${like},owner_email.ilike.${like},slug.ilike.${like},company.ilike.${like}`)
+      .limit(15),
+    admin.from('support_tickets').select('id, subject, status, workspaces(name)')
+      .ilike('subject', like).limit(15),
+    admin.from('platform_admins').select('email, role').ilike('email', like).limit(10),
+  ])
+
+  return {
+    workspaces: (ws ?? []).map((w) => ({ id: w.id as string, name: w.name as string, owner_email: w.owner_email as string | null, status: w.status as string, plan: w.plan as string })),
+    tickets: (tk ?? []).map((t) => ({ id: t.id as string, subject: t.subject as string, status: t.status as string, workspace_name: (t.workspaces as unknown as { name: string } | null)?.name ?? '—' })),
+    admins: (ad ?? []).map((a) => ({ email: a.email as string, role: a.role as string })),
   }
 }
 

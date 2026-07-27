@@ -2,6 +2,7 @@ import Link from 'next/link'
 import {
   ShieldCheck, LayoutDashboard, Building2, ScrollText, Flag, Users, BadgeCheck,
   IndianRupee, BarChart3, Activity, Radio, Lock, LifeBuoy, Settings, Package,
+  Search, FileDown,
 } from 'lucide-react'
 import { requirePlatformAdmin } from '@/lib/platform-admin/auth'
 import { logoutAction } from '@/lib/actions/auth'
@@ -24,6 +25,7 @@ const NAV_GROUPS = [
       { label: 'Revenue', href: '/platform-admin/revenue', icon: IndianRupee },
       { label: 'Plans', href: '/platform-admin/plans', icon: Package },
       { label: 'Analytics', href: '/platform-admin/analytics', icon: BarChart3 },
+      { label: 'Reports', href: '/platform-admin/reports', icon: FileDown },
     ],
   },
   {
@@ -88,12 +90,17 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
       </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900 px-6">
-          <span className="text-sm text-zinc-400">
-            ⚠️ Operator console — actions here affect real customers and are audit-logged.
-          </span>
+        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-zinc-800 bg-zinc-900 px-6">
+          <form method="GET" action="/platform-admin/search" className="relative max-w-md flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-2 h-4 w-4 text-zinc-500" />
+            <input
+              name="q"
+              placeholder="Search clients, tickets, operators…"
+              className="h-8 w-full rounded-md border border-zinc-800 bg-zinc-950 pl-8 pr-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-700 focus:outline-none"
+            />
+          </form>
           <form action={logoutAction}>
-            <button type="submit" className="text-sm text-zinc-400 hover:text-white">
+            <button type="submit" className="shrink-0 text-sm text-zinc-400 hover:text-white">
               Log out
             </button>
           </form>

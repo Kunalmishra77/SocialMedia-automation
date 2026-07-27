@@ -34,8 +34,13 @@ export default async function CommunicationPage() {
                 <option value="enterprise">Enterprise plan</option>
               </select>
             </div>
+            <div>
+              <label className="mb-1 block text-xs text-zinc-400">Schedule for (optional)</label>
+              <input type="datetime-local" name="scheduledFor" className="h-10 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100" />
+              <p className="mt-1 text-[11px] text-zinc-600">Leave empty to publish now.</p>
+            </div>
             <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-500">
-              <Send className="h-4 w-4" /> Publish announcement
+              <Send className="h-4 w-4" /> Publish / schedule
             </button>
           </form>
         </Panel>
@@ -50,11 +55,16 @@ export default async function CommunicationPage() {
             <div className="space-y-3">
               {announcements.map((a) => {
                 const scope = (a.audience?.scope as string) === 'plan' ? `${a.audience?.plan} plan` : 'all clients'
+                const scheduled = !a.published_at && a.scheduled_for
                 return (
                   <div key={a.id} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-semibold text-zinc-200">{a.title}</p>
-                      <span className="text-xs text-zinc-500">{timeAgo(a.published_at ?? a.created_at)}</span>
+                      {scheduled ? (
+                        <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-400">scheduled · {new Date(a.scheduled_for as string).toLocaleString()}</span>
+                      ) : (
+                        <span className="shrink-0 text-xs text-zinc-500">{timeAgo(a.published_at ?? a.created_at)}</span>
+                      )}
                     </div>
                     <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-400">{a.body}</p>
                     <p className="mt-2 text-xs capitalize text-indigo-400">→ {scope}</p>

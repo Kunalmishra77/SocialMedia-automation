@@ -84,9 +84,12 @@ export async function adminReplyAction(formData: FormData): Promise<void> {
   await admin.from('support_ticket_messages').insert({
     ticket_id: ticketId, author_type: 'admin', author_id: ctx.userId, author_name: ctx.email, body, is_internal: internal,
   })
-  // A public reply moves the ticket to waiting on the client.
+  // A public reply moves the ticket to waiting on the client + records first response (SLA).
   if (!internal) {
-    await admin.from('support_tickets').update({ status: 'waiting_client', updated_at: new Date().toISOString() }).eq('id', ticketId)
+    const { data: t } = await admin.from('support_tickets').select('first_response_at').eq('id', ticketId).maybeSingle()
+    const patch: Record<string, unknown> = { status: 'waiting_client', updated_at: new Date().toISOString() }
+    if (!t?.first_response_at) patch.first_response_at = new Date().toISOString()
+    await admin.from('support_tickets').update(patch).eq('id', ticketId)
   }
   await writeAudit(ctx, 'support.reply', { type: 'ticket', id: ticketId, metadata: { internal } })
   revalidatePath(`/platform-admin/support/${ticketId}`)

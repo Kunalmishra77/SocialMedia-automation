@@ -5,6 +5,7 @@ import { requirePlatformAdmin } from '@/lib/platform-admin/auth'
 import { getTicket } from '@/lib/platform-admin/command-center'
 import { listPlatformAdmins as _list } from '@/lib/platform-admin/metrics'
 import { adminReplyAction, updateTicketAction, assignTicketAction } from '@/lib/actions/support'
+import { slaStatus } from '@/lib/support-sla'
 import { PageHeader, Panel, timeAgo } from '../../ui'
 
 const STATUSES = ['open', 'in_progress', 'waiting_client', 'escalated', 'resolved', 'closed']
@@ -15,6 +16,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   const [ticket, admins] = await Promise.all([getTicket(id), _list()])
   if (!ticket) notFound()
+  const sla = slaStatus(ticket.priority, ticket.created_at, ticket.first_response_at, ['resolved', 'closed'].includes(ticket.status))
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -65,6 +67,13 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
 
         {/* Sidebar controls */}
         <div className="space-y-4">
+          <Panel title="SLA · first response">
+            <div className={`rounded-lg border p-3 text-sm ${sla.breached ? 'border-red-900/50 bg-red-950/30 text-red-300' : sla.responded ? 'border-emerald-900/50 bg-emerald-950/20 text-emerald-300' : 'border-zinc-800 bg-zinc-950/50 text-zinc-300'}`}>
+              <p className="font-medium capitalize">{sla.label}</p>
+              <p className="mt-0.5 text-xs text-zinc-500">Target: {sla.targetHours}h · {ticket.first_response_at ? `first reply ${timeAgo(ticket.first_response_at)}` : `due ${new Date(sla.dueAt).toLocaleString()}`}</p>
+            </div>
+          </Panel>
+
           <Panel title="Status & priority">
             <form action={updateTicketAction} className="space-y-3">
               <input type="hidden" name="ticketId" value={ticket.id} />

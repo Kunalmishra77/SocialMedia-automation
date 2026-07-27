@@ -89,9 +89,14 @@ export async function createAnnouncementAction(formData: FormData): Promise<void
   const title = String(formData.get('title') ?? '').trim()
   const body = String(formData.get('body') ?? '').trim()
   const scope = String(formData.get('scope') ?? 'all') // all | starter | pro | enterprise
+  const scheduledFor = String(formData.get('scheduledFor') ?? '').trim()
   if (title.length < 3 || body.length < 3) throw new Error('Title and body are required')
 
   const audience = scope === 'all' ? { scope: 'all' } : { scope: 'plan', plan: scope }
+
+  // Schedule for the future, or publish immediately.
+  const scheduledDate = scheduledFor ? new Date(scheduledFor) : null
+  const isFuture = scheduledDate && scheduledDate.getTime() > Date.now()
 
   const admin = createAdminClient()
   await admin.from('platform_announcements').insert({
@@ -100,10 +105,11 @@ export async function createAnnouncementAction(formData: FormData): Promise<void
     audience,
     channels: ['in_app'],
     created_by: ctx.userId,
-    published_at: new Date().toISOString(),
+    scheduled_for: isFuture ? scheduledDate!.toISOString() : null,
+    published_at: isFuture ? null : new Date().toISOString(),
   })
 
-  await writeAudit(ctx, 'announcement.publish', { type: 'announcement', label: title, metadata: { scope } })
+  await writeAudit(ctx, isFuture ? 'announcement.schedule' : 'announcement.publish', { type: 'announcement', label: title, metadata: { scope, scheduledFor: isFuture ? scheduledDate!.toISOString() : null } })
   revalidatePath('/platform-admin/communication')
 }
 
