@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import {
   ShieldCheck, LayoutDashboard, Building2, ScrollText, Flag, Users, BadgeCheck,
-  IndianRupee, BarChart3, Activity, Radio, Lock,
+  IndianRupee, BarChart3, Activity, Radio, Lock, LifeBuoy, Settings, Package,
 } from 'lucide-react'
 import { requirePlatformAdmin } from '@/lib/platform-admin/auth'
 import { logoutAction } from '@/lib/actions/auth'
@@ -22,12 +22,14 @@ const NAV_GROUPS = [
     label: 'Business',
     items: [
       { label: 'Revenue', href: '/platform-admin/revenue', icon: IndianRupee },
+      { label: 'Plans', href: '/platform-admin/plans', icon: Package },
       { label: 'Analytics', href: '/platform-admin/analytics', icon: BarChart3 },
     ],
   },
   {
     label: 'Operations',
     items: [
+      { label: 'Support', href: '/platform-admin/support', icon: LifeBuoy },
       { label: 'System health', href: '/platform-admin/health', icon: Activity },
       { label: 'Communication', href: '/platform-admin/communication', icon: Radio },
       { label: 'Feature flags', href: '/platform-admin/feature-flags', icon: Flag },
@@ -39,6 +41,7 @@ const NAV_GROUPS = [
       { label: 'Security', href: '/platform-admin/security', icon: Lock },
       { label: 'Admins', href: '/platform-admin/admins', icon: Users },
       { label: 'Audit log', href: '/platform-admin/audit', icon: ScrollText },
+      { label: 'Settings', href: '/platform-admin/settings', icon: Settings },
     ],
   },
 ]

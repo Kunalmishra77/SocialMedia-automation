@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { changePlanAction } from '@/lib/actions/billing'
-import { PLAN_CATALOG } from '@/lib/plans'
+import { getActivePlans } from '@/lib/plans-server'
 import { planLimits } from '@/lib/plan-features'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageHeader } from '@/components/dashboard/page-header'
@@ -20,6 +20,7 @@ export default async function BillingPage() {
       .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
       .then((r) => r.count ?? 0),
   ])
+  const plans = await getActivePlans()
   const currentPlan = ws?.plan ?? 'free'
   const limits = planLimits(currentPlan)
   const msgPct = limits.maxMessages > 0 ? Math.min(100, Math.round((msgCount / limits.maxMessages) * 100)) : 0
@@ -53,7 +54,7 @@ export default async function BillingPage() {
 
       <p className="mb-3 text-sm font-semibold">Change plan</p>
       <div className="grid gap-4 sm:grid-cols-3">
-        {PLAN_CATALOG.map((p) => {
+        {plans.map((p) => {
           const isCurrent = p.key === currentPlan
           return (
             <div key={p.key} className={`rounded-xl border p-4 ${p.highlight ? 'border-primary' : 'border-border'} bg-card shadow-[var(--shadow-card)]`}>

@@ -47,3 +47,7 @@ export const PLAN_CATALOG: PlanOption[] = [
 export function planByKey(key: string): PlanOption | undefined {
   return PLAN_CATALOG.find((p) => p.key === key)
 }
+
+// DB-backed, editable catalog lives in lib/plans-server.ts (server-only).
+// This file stays client-safe (pure data) so client components can import
+// PLAN_CATALOG / PlanOption without pulling in the service-role client.

@@ -5,7 +5,7 @@ import {
   Sparkles, MessagesSquare, CalendarClock, Workflow, BarChart3, ShieldCheck,
   Check, CreditCard, Loader2, PartyPopper, ArrowRight, HelpCircle, ChevronDown,
 } from 'lucide-react'
-import { PLAN_CATALOG } from '@/lib/plans'
+import { PLAN_CATALOG, type PlanOption } from '@/lib/plans'
 import { PLATFORMS, platformByKey, CAP_LABEL } from '@/lib/platforms'
 import { submitOnboardingAction, createPaymentOrderAction, confirmRazorpayPaymentAction } from '@/lib/actions/onboarding'
 
@@ -36,17 +36,18 @@ type Step = 'welcome' | 'platforms' | 'setup' | 'plan' | 'pay' | 'waiting'
 const ORDER: Step[] = ['welcome', 'platforms', 'setup', 'plan', 'pay']
 
 export function OnboardingFlow({
-  token, workspaceName, initialStep = 'welcome', razorpay = false,
+  token, workspaceName, initialStep = 'welcome', razorpay = false, plans = PLAN_CATALOG,
 }: {
-  token: string; workspaceName: string; initialStep?: Step; razorpay?: boolean
+  token: string; workspaceName: string; initialStep?: Step; razorpay?: boolean; plans?: PlanOption[]
 }) {
   const [step, setStep] = useState<Step>(initialStep)
   const [platforms, setPlatforms] = useState<string[]>(['instagram'])
   const [creds, setCreds] = useState<Record<string, string>>({})
-  const [plan, setPlan] = useState('pro')
+  const defaultPlan = plans.find((p) => p.highlight)?.key ?? plans[0]?.key ?? 'pro'
+  const [plan, setPlan] = useState(defaultPlan)
   const [payError, setPayError] = useState('')
   const [rzpBusy, setRzpBusy] = useState(false)
-  const selected = PLAN_CATALOG.find((p) => p.key === plan)!
+  const selected = (plans.find((p) => p.key === plan) ?? plans[0])!
   const chosen = PLATFORMS.filter((p) => platforms.includes(p.key))
 
   const [state, formAction, pending] = useActionState<{ error?: string; ok?: boolean }, FormData>(
@@ -208,7 +209,7 @@ export function OnboardingFlow({
       {step === 'plan' && (
         <Card title="Choose your plan" subtitle="Pick the plan that fits. You can change it later.">
           <div className="grid gap-4 sm:grid-cols-3">
-            {PLAN_CATALOG.map((p) => (
+            {plans.map((p) => (
               <button key={p.key} onClick={() => setPlan(p.key)} className={`relative rounded-xl border p-4 text-left transition ${plan === p.key ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/40'}`}>
                 {p.highlight && <span className="absolute -top-2 right-3 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">POPULAR</span>}
                 <p className="font-semibold">{p.name}</p>

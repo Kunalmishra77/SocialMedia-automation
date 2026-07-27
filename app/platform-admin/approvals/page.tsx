@@ -2,11 +2,14 @@ import { requirePlatformAdmin } from '@/lib/platform-admin/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { approveClientAction, rejectClientAction } from '@/lib/actions/onboarding'
 import { planByKey } from '@/lib/plans'
+import { getActivePlans } from '@/lib/plans-server'
 import { platformByKey } from '@/lib/platforms'
 
 export default async function ApprovalsPage() {
   await requirePlatformAdmin()
   const admin = createAdminClient()
+  const planList = await getActivePlans()
+  const planMap = Object.fromEntries(planList.map((p) => [p.key, p]))
   const { data: pending } = await admin
     .from('workspaces')
     .select('id, name, owner_email, owner_name, owner_phone, company, selected_plan, selected_platforms, payment_amount, submitted_at')
@@ -40,7 +43,7 @@ export default async function ApprovalsPage() {
 
       <div className="space-y-3">
         {pending?.map((w) => {
-          const plan = planByKey(w.selected_plan ?? '')
+          const plan = planMap[w.selected_plan ?? ''] ?? planByKey(w.selected_plan ?? '')
           return (
             <div key={w.id} className="rounded-lg border border-zinc-800 bg-zinc-900 p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">

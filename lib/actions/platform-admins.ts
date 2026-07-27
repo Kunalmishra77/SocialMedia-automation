@@ -36,6 +36,30 @@ export async function addPlatformAdminAction(formData: FormData): Promise<{ erro
   return {}
 }
 
+/** Change a platform admin's role (RBAC). Owner-only via manage_platform_admins. */
+export async function setPlatformAdminRoleAction(formData: FormData): Promise<void> {
+  const ctx = await requirePlatformAdmin()
+  if (!can(ctx, 'manage_platform_admins')) throw new Error('Forbidden')
+
+  const id = String(formData.get('id'))
+  const role = String(formData.get('role') ?? '')
+  if (!VALID_ROLES.includes(role)) throw new Error('Invalid role')
+
+  const admin = createAdminClient()
+  // Guard: never leave the platform without an owner.
+  if (role !== 'platform_owner') {
+    const { data: target } = await admin.from('platform_admins').select('role').eq('id', id).maybeSingle()
+    if (target?.role === 'platform_owner') {
+      const { count } = await admin.from('platform_admins').select('id', { count: 'exact', head: true }).eq('role', 'platform_owner').eq('is_active', true)
+      if ((count ?? 0) <= 1) throw new Error('Cannot demote the last active owner')
+    }
+  }
+
+  const { data: row } = await admin.from('platform_admins').update({ role }).eq('id', id).select('email').maybeSingle()
+  await writeAudit(ctx, 'platform_admin.role_change', { type: 'platform_admin', id, label: row?.email, metadata: { role } })
+  revalidatePath('/platform-admin/admins')
+}
+
 export async function setPlatformAdminActiveAction(formData: FormData): Promise<void> {
   const ctx = await requirePlatformAdmin()
   if (!can(ctx, 'manage_platform_admins')) throw new Error('Forbidden')

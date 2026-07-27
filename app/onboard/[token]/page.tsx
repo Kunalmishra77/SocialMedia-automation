@@ -1,5 +1,6 @@
 import { getOnboardingState } from '@/lib/actions/onboarding'
 import { razorpayConfigured } from '@/lib/billing/razorpay'
+import { getActivePlans } from '@/lib/plans-server'
 import { OnboardingFlow } from './onboarding-flow'
 
 export default async function OnboardPage({ params }: { params: Promise<{ token: string }> }) {
@@ -21,6 +22,7 @@ export default async function OnboardPage({ params }: { params: Promise<{ token:
   // Already submitted or active → jump to the live status/waiting screen.
   const initialStep =
     state.status === 'onboarding' ? 'welcome' : ('waiting' as const)
+  const plans = await getActivePlans()
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
@@ -35,6 +37,7 @@ export default async function OnboardPage({ params }: { params: Promise<{ token:
         workspaceName={state.workspaceName ?? 'your brand'}
         initialStep={initialStep}
         razorpay={razorpayConfigured()}
+        plans={plans}
       />
     </div>
   )

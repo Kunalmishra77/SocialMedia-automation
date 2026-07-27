@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { PLAN_CATALOG, planByKey } from '@/lib/plans'
+import { getActivePlans, getPlanPriceMap } from '@/lib/plans-server'
 
 const DAY = 86400_000
 
@@ -82,6 +82,8 @@ export async function getCommandCenter(): Promise<CommandCenter> {
     admin.from('channel_accounts').select('id').not('token_expires_at', 'is', null).lte('token_expires_at', since(-7)),
   ])
 
+  const [priceMap, activePlans] = await Promise.all([getPlanPriceMap(), getActivePlans()])
+
   const rows = workspaces ?? []
   const now = Date.now()
 
@@ -96,8 +98,7 @@ export async function getCommandCenter(): Promise<CommandCenter> {
     clients.total++
     if (w.status === 'active') {
       clients.active++
-      const price = planByKey(w.plan)?.price ?? 0
-      mrr += price
+      mrr += priceMap[w.plan] ?? 0
       planCount[w.plan] = (planCount[w.plan] ?? 0) + 1
     }
     if (w.status === 'pending_approval') {
@@ -125,16 +126,23 @@ export async function getCommandCenter(): Promise<CommandCenter> {
   }
   const growth = Object.entries(growthMap).map(([day, count]) => ({ day, count }))
 
-  const planDistribution = PLAN_CATALOG.map((p) => ({
+  const planDistribution = activePlans.map((p) => ({
     plan: p.name,
     count: planCount[p.key] ?? 0,
-    mrr: (planCount[p.key] ?? 0) * p.price,
+    mrr: (planCount[p.key] ?? 0) * (priceMap[p.key] ?? p.price),
   }))
 
   const autoRows = automations ?? []
   const activeAutomations = autoRows.filter((a) => a.is_active).length
 
+  const { count: urgentTickets } = await admin
+    .from('support_tickets')
+    .select('id', { count: 'exact', head: true })
+    .eq('priority', 'urgent')
+    .not('status', 'in', '("resolved","closed")')
+
   const alerts: CommandCenter['alerts'] = []
+  if ((urgentTickets ?? 0) > 0) alerts.push({ level: 'critical', text: `${urgentTickets} urgent support ticket${(urgentTickets ?? 0) > 1 ? 's' : ''} open` })
   if (clients.pending > 0) alerts.push({ level: 'warning', text: `${clients.pending} client${clients.pending > 1 ? 's' : ''} awaiting approval` })
   if (clients.suspended > 0) alerts.push({ level: 'critical', text: `${clients.suspended} suspended workspace${clients.suspended > 1 ? 's' : ''}` })
   if ((expiringTokens ?? []).length > 0) alerts.push({ level: 'warning', text: `${(expiringTokens ?? []).length} channel token(s) expiring within 7 days` })
@@ -180,9 +188,11 @@ export interface RevenueReport {
 
 export async function getRevenue(): Promise<RevenueReport> {
   const admin = createAdminClient()
-  const { data: rows } = await admin
-    .from('workspaces')
-    .select('name, plan, status, selected_plan, payment_status, payment_amount, submitted_at, approved_at')
+  const [{ data: rows }, priceMap, activePlans] = await Promise.all([
+    admin.from('workspaces').select('name, plan, status, selected_plan, payment_status, payment_amount, submitted_at, approved_at'),
+    getPlanPriceMap(),
+    getActivePlans(),
+  ])
 
   const ws = rows ?? []
   const planActive: Record<string, number> = {}
@@ -194,7 +204,7 @@ export async function getRevenue(): Promise<RevenueReport> {
   for (const w of ws) {
     if (w.status === 'active') {
       planActive[w.plan] = (planActive[w.plan] ?? 0) + 1
-      const price = planByKey(w.plan)?.price ?? 0
+      const price = priceMap[w.plan] ?? 0
       if (price > 0) topClients.push({ name: w.name, plan: w.plan, mrr: price })
     }
     if (w.payment_status === 'demo_paid' && w.payment_amount) collected += Number(w.payment_amount)
@@ -205,11 +215,12 @@ export async function getRevenue(): Promise<RevenueReport> {
   }
 
   let mrr = 0
-  const byPlan = PLAN_CATALOG.map((p) => {
+  const byPlan = activePlans.map((p) => {
     const active = planActive[p.key] ?? 0
-    const planMrr = active * p.price
+    const price = priceMap[p.key] ?? p.price
+    const planMrr = active * price
     mrr += planMrr
-    return { plan: p.name, price: p.price, active, mrr: planMrr, share: 0 }
+    return { plan: p.name, price, active, mrr: planMrr, share: 0 }
   })
   for (const b of byPlan) b.share = mrr > 0 ? Math.round((b.mrr / mrr) * 100) : 0
 
@@ -364,6 +375,170 @@ export async function listAnnouncements(limit = 30): Promise<Announcement[]> {
     .order('created_at', { ascending: false })
     .limit(limit)
   return (data ?? []) as Announcement[]
+}
+
+// ─────────────────────────────────────────────────────────────
+// Support tickets
+// ─────────────────────────────────────────────────────────────
+
+export interface TicketRow {
+  id: string
+  subject: string
+  category: string
+  priority: string
+  status: string
+  workspace_name: string
+  assigned_to: string | null
+  created_at: string
+  updated_at: string
+}
+
+export async function listTickets(filter?: { status?: string; priority?: string }): Promise<TicketRow[]> {
+  const admin = createAdminClient()
+  let q = admin
+    .from('support_tickets')
+    .select('id, subject, category, priority, status, assigned_to, created_at, updated_at, workspaces(name)')
+    .order('updated_at', { ascending: false })
+    .limit(200)
+  if (filter?.status) q = q.eq('status', filter.status)
+  if (filter?.priority) q = q.eq('priority', filter.priority)
+  const { data } = await q
+  return (data ?? []).map((t) => ({
+    id: t.id as string,
+    subject: t.subject as string,
+    category: t.category as string,
+    priority: t.priority as string,
+    status: t.status as string,
+    assigned_to: t.assigned_to as string | null,
+    created_at: t.created_at as string,
+    updated_at: t.updated_at as string,
+    workspace_name: (t.workspaces as unknown as { name: string } | null)?.name ?? '—',
+  }))
+}
+
+export interface TicketStats {
+  open: number
+  inProgress: number
+  urgent: number
+  unassigned: number
+  total: number
+}
+
+export async function getTicketStats(): Promise<TicketStats> {
+  const admin = createAdminClient()
+  const { data } = await admin.from('support_tickets').select('status, priority, assigned_to')
+  const rows = data ?? []
+  return {
+    total: rows.length,
+    open: rows.filter((r) => r.status === 'open').length,
+    inProgress: rows.filter((r) => r.status === 'in_progress').length,
+    urgent: rows.filter((r) => r.priority === 'urgent' && !['resolved', 'closed'].includes(r.status)).length,
+    unassigned: rows.filter((r) => !r.assigned_to && !['resolved', 'closed'].includes(r.status)).length,
+  }
+}
+
+export interface TicketDetail extends TicketRow {
+  workspace_id: string
+  messages: { id: string; author_type: string; author_name: string | null; body: string; is_internal: boolean; created_at: string }[]
+}
+
+export async function getTicket(id: string): Promise<TicketDetail | null> {
+  const admin = createAdminClient()
+  const { data: t } = await admin
+    .from('support_tickets')
+    .select('id, subject, category, priority, status, assigned_to, created_at, updated_at, workspace_id, workspaces(name)')
+    .eq('id', id)
+    .maybeSingle()
+  if (!t) return null
+  const { data: msgs } = await admin
+    .from('support_ticket_messages')
+    .select('id, author_type, author_name, body, is_internal, created_at')
+    .eq('ticket_id', id)
+    .order('created_at')
+  return {
+    id: t.id as string,
+    subject: t.subject as string,
+    category: t.category as string,
+    priority: t.priority as string,
+    status: t.status as string,
+    assigned_to: t.assigned_to as string | null,
+    created_at: t.created_at as string,
+    updated_at: t.updated_at as string,
+    workspace_id: t.workspace_id as string,
+    workspace_name: (t.workspaces as unknown as { name: string } | null)?.name ?? '—',
+    messages: (msgs ?? []) as TicketDetail['messages'],
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 360° client view
+// ─────────────────────────────────────────────────────────────
+
+export interface Client360 {
+  usage: { messages: number; messages30d: number; conversations: number; contacts: number; leads: number; automations: number; content: number; aiEvents30d: number }
+  channels: { channel: string; handle: string | null; is_active: boolean; token_expires_at: string | null }[]
+  tickets: { open: number; total: number }
+  payment: { status: string | null; amount: number | null; selected_plan: string | null; submitted_at: string | null; approved_at: string | null }
+  activity: { action: string; label: string | null; at: string }[]
+  lastImpersonation: string | null
+}
+
+export async function getClient360(workspaceId: string): Promise<Client360> {
+  const admin = createAdminClient()
+  const [
+    { count: messages },
+    { count: messages30d },
+    { count: conversations },
+    { count: contacts },
+    { count: leads },
+    { count: automations },
+    { count: content },
+    { count: aiEvents30d },
+    { data: channels },
+    { data: tickets },
+    { data: ws },
+    { data: activity },
+    { data: imp },
+  ] = await Promise.all([
+    admin.from('messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId),
+    admin.from('messages').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).gte('created_at', since(30)),
+    admin.from('conversations').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId),
+    admin.from('contacts').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId),
+    admin.from('leads').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId),
+    admin.from('workflow_automations').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId),
+    admin.from('content_posts').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId),
+    admin.from('platform_usage_logs').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).ilike('metric', 'ai%').gte('occurred_at', since(30)),
+    admin.from('channel_accounts').select('channel, handle, is_active, token_expires_at').eq('workspace_id', workspaceId),
+    admin.from('support_tickets').select('status').eq('workspace_id', workspaceId),
+    admin.from('workspaces').select('payment_status, payment_amount, selected_plan, submitted_at, approved_at').eq('id', workspaceId).maybeSingle(),
+    admin.from('platform_audit_log').select('action, target_label, occurred_at').eq('target_id', workspaceId).order('occurred_at', { ascending: false }).limit(8),
+    admin.from('impersonation_sessions').select('started_at').eq('workspace_id', workspaceId).order('started_at', { ascending: false }).limit(1),
+  ])
+
+  const ticketRows = tickets ?? []
+  return {
+    usage: {
+      messages: messages ?? 0,
+      messages30d: messages30d ?? 0,
+      conversations: conversations ?? 0,
+      contacts: contacts ?? 0,
+      leads: leads ?? 0,
+      automations: automations ?? 0,
+      content: content ?? 0,
+      aiEvents30d: aiEvents30d ?? 0,
+    },
+    channels: (channels ?? []).map((c) => ({ channel: c.channel as string, handle: c.handle as string | null, is_active: c.is_active as boolean, token_expires_at: c.token_expires_at as string | null })),
+    tickets: { open: ticketRows.filter((t) => !['resolved', 'closed'].includes(t.status as string)).length, total: ticketRows.length },
+    payment: {
+      status: (ws?.payment_status as string) ?? null,
+      amount: (ws?.payment_amount as number) ?? null,
+      selected_plan: (ws?.selected_plan as string) ?? null,
+      submitted_at: (ws?.submitted_at as string) ?? null,
+      approved_at: (ws?.approved_at as string) ?? null,
+    },
+    activity: (activity ?? []).map((a) => ({ action: a.action as string, label: a.target_label as string | null, at: a.occurred_at as string })),
+    lastImpersonation: (imp ?? [])[0]?.started_at ?? null,
+  }
 }
 
 export interface ImpersonationRow {

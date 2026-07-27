@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePlatformAdmin, can, writeAudit } from '@/lib/platform-admin/auth'
-import { planByKey } from '@/lib/plans'
+import { getPlan } from '@/lib/plans-server'
 import { encrypt } from '@/lib/crypto'
 import { sendMail, credentialsEmailHtml } from '@/lib/email'
 import { razorpayConfigured, razorpayKeyId, createOrder, verifyPaymentSignature } from '@/lib/billing/razorpay'
@@ -131,7 +131,7 @@ export async function submitOnboardingAction(
 ): Promise<{ error?: string; ok?: boolean }> {
   const token = String(formData.get('token'))
   const planKey = String(formData.get('plan'))
-  const plan = planByKey(planKey)
+  const plan = await getPlan(planKey)
   if (!plan) return { error: 'Please choose a plan' }
 
   const admin = createAdminClient()
@@ -169,7 +169,7 @@ export async function createPaymentOrderAction(
   token: string,
   planKey: string,
 ): Promise<{ demo: boolean; orderId?: string; amount?: number; keyId?: string; error?: string }> {
-  const plan = planByKey(planKey)
+  const plan = await getPlan(planKey)
   if (!plan) return { demo: true, error: 'Invalid plan' }
   if (!razorpayConfigured()) return { demo: true }
 
@@ -192,7 +192,7 @@ export async function confirmRazorpayPaymentAction(
   const orderId = String(formData.get('razorpay_order_id'))
   const paymentId = String(formData.get('razorpay_payment_id'))
   const signature = String(formData.get('razorpay_signature'))
-  const plan = planByKey(planKey)
+  const plan = await getPlan(planKey)
   if (!plan) return { error: 'Invalid plan' }
   if (!verifyPaymentSignature(orderId, paymentId, signature)) return { error: 'Payment verification failed' }
 

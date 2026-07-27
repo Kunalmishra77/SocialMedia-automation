@@ -1,8 +1,15 @@
 import { notFound } from 'next/navigation'
-import { requirePlatformAdmin, can } from '@/lib/platform-admin/auth'
+import { requirePlatformAdmin, can, PLATFORM_ROLE_PERMISSIONS, type PlatformRole } from '@/lib/platform-admin/auth'
 import { listPlatformAdmins } from '@/lib/platform-admin/metrics'
-import { setPlatformAdminActiveAction } from '@/lib/actions/platform-admins'
+import { setPlatformAdminActiveAction, setPlatformAdminRoleAction } from '@/lib/actions/platform-admins'
 import { AddAdminForm } from './add-admin-form'
+
+const ROLES: { key: PlatformRole; label: string; desc: string }[] = [
+  { key: 'platform_owner', label: 'Owner', desc: 'Full control including managing other admins' },
+  { key: 'platform_admin', label: 'Admin', desc: 'Everything except managing admins' },
+  { key: 'platform_support', label: 'Support', desc: 'Clients, support, impersonation, audit' },
+  { key: 'platform_billing', label: 'Billing', desc: 'Revenue, billing & plan changes' },
+]
 
 export default async function AdminsPage() {
   const ctx = await requirePlatformAdmin()
@@ -33,7 +40,19 @@ export default async function AdminsPage() {
             {admins.map((a) => (
               <tr key={a.id}>
                 <td className="px-4 py-3 text-zinc-200">{a.email}</td>
-                <td className="px-4 py-3 capitalize text-zinc-400">{a.role.replace('platform_', '')}</td>
+                <td className="px-4 py-3">
+                  <form action={setPlatformAdminRoleAction} className="inline">
+                    <input type="hidden" name="id" value={a.id} />
+                    <select
+                      name="role"
+                      defaultValue={a.role}
+                      className="h-8 rounded-md border border-zinc-700 bg-zinc-950 px-2 text-xs capitalize text-zinc-200"
+                    >
+                      {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                    </select>
+                    <button className="ml-1 rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700">Set</button>
+                  </form>
+                </td>
                 <td className="px-4 py-3">
                   {a.totp_enabled ? (
                     <span className="text-emerald-400">on</span>
@@ -67,6 +86,24 @@ export default async function AdminsPage() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* RBAC reference */}
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-5">
+        <h2 className="mb-3 text-sm font-semibold text-zinc-300">Role permissions</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {ROLES.map((r) => (
+            <div key={r.key} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+              <p className="text-sm font-medium text-zinc-200">{r.label}</p>
+              <p className="mb-2 text-xs text-zinc-500">{r.desc}</p>
+              <div className="flex flex-wrap gap-1">
+                {(PLATFORM_ROLE_PERMISSIONS[r.key] ?? []).map((p) => (
+                  <span key={p} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">{p.replace(/_/g, ' ')}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
