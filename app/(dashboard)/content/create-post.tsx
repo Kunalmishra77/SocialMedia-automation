@@ -2,25 +2,40 @@
 
 import { useState } from 'react'
 import { useActionState } from 'react'
-import { createPostAction } from '@/lib/actions/content'
+import { Sparkles, Loader2 } from 'lucide-react'
+import { createPostAction, generateCaptionAction } from '@/lib/actions/content'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 export function CreatePost() {
   const [open, setOpen] = useState(false)
+  const [caption, setCaption] = useState('')
+  const [hashtags, setHashtags] = useState('')
+  const [topic, setTopic] = useState('')
+  const [genBusy, setGenBusy] = useState(false)
+  const [genErr, setGenErr] = useState('')
   const [state, formAction, pending] = useActionState<{ error?: string }, FormData>(
     async (_prev, fd) => {
       const res = await createPostAction(fd)
-      if (!res.error) setOpen(false)
+      if (!res.error) { setOpen(false); setCaption(''); setHashtags(''); setTopic('') }
       return res
     },
     {},
   )
 
+  async function generate() {
+    setGenErr(''); setGenBusy(true)
+    try {
+      const res = await generateCaptionAction(topic, 'friendly')
+      if (res.error) setGenErr(res.error)
+      else { setCaption(res.caption ?? ''); setHashtags(res.hashtags ?? '') }
+    } finally { setGenBusy(false) }
+  }
+
   if (!open) return <Button size="sm" onClick={() => setOpen(true)}>+ New post</Button>
 
   return (
-    <form action={formAction} className="space-y-3 rounded-lg border border-border bg-card p-4">
+    <form action={formAction} className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
       <div className="grid gap-3 sm:grid-cols-2">
         <select name="type" defaultValue="feed" className="h-10 rounded-md border border-input bg-background px-3 text-sm">
           <option value="feed">Feed post</option>
@@ -30,18 +45,24 @@ export function CreatePost() {
         </select>
         <Input name="scheduled_at" type="datetime-local" />
       </div>
-      <textarea
-        name="caption"
-        rows={4}
-        required
-        placeholder="Write your caption…"
-        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-      />
-      <Input name="hashtags" placeholder="#hashtags space or comma separated" />
+
+      {/* AI generator */}
+      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+        <div className="flex items-center gap-2">
+          <Input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="Topic / idea (e.g. new summer collection launch)" className="flex-1" />
+          <Button type="button" size="sm" onClick={generate} disabled={genBusy}>
+            {genBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Sparkles className="h-4 w-4" /> Generate</>}
+          </Button>
+        </div>
+        {genErr && <p className="mt-1 text-xs text-destructive">{genErr}</p>}
+      </div>
+
+      <textarea name="caption" rows={4} required value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Write your caption…" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+      <Input name="hashtags" value={hashtags} onChange={(e) => setHashtags(e.target.value)} placeholder="#hashtags space or comma separated" />
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>{pending ? 'Saving…' : 'Save post'}</Button>
-        <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
       </div>
     </form>
   )

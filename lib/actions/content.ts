@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership } from '@/lib/authz'
+import { callAI, aiConfigured } from '@/lib/ai/client'
 
 async function ctx() {
   const user = await getUser()
@@ -38,6 +39,31 @@ export async function createPostAction(formData: FormData): Promise<{ error?: st
   })
   revalidatePath('/content')
   return {}
+}
+
+/** AI-generate a caption + hashtags for a topic. */
+export async function generateCaptionAction(
+  topic: string,
+  tone: string,
+): Promise<{ caption?: string; hashtags?: string; error?: string }> {
+  await ctx()
+  if (!aiConfigured()) return { error: 'Add an OpenAI/OpenRouter key to enable AI generation.' }
+  const t = topic.trim()
+  if (!t) return { error: 'Enter a topic or idea' }
+
+  const out = await callAI(
+    [{
+      role: 'user',
+      content: `Write an Instagram caption for this: "${t}". Tone: ${tone || 'friendly'}. Keep it under 60 words, engaging, with 1-2 emojis. Then on a new line starting with "HASHTAGS:" give 8 relevant hashtags space-separated.`,
+    }],
+    { maxTokens: 220, temperature: 0.8 },
+  )
+  if (!out) return { error: 'Generation failed, try again.' }
+  const parts = out.split(/HASHTAGS:/i)
+  return {
+    caption: parts[0].trim(),
+    hashtags: (parts[1] ?? '').trim().replace(/^#/, ''),
+  }
 }
 
 export async function deletePostAction(formData: FormData): Promise<void> {

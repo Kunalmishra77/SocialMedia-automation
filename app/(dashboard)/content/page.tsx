@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { deletePostAction } from '@/lib/actions/content'
+import { PageHeader } from '@/components/dashboard/page-header'
 import { CreatePost } from './create-post'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -26,12 +27,9 @@ export default async function ContentPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Content</h1>
-        <p className="text-sm text-muted-foreground">Plan, schedule and publish your posts.</p>
-      </div>
-
+      <PageHeader title="Content" subtitle="Plan, schedule and publish your posts — with AI captions." />
       <CreatePost />
+
 
       <div className="grid gap-3 sm:grid-cols-2">
         {(!posts || posts.length === 0) && (
