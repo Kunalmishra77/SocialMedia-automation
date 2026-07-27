@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { MessageSquare, Tag, Clock, Zap, Plus, Trash2, Play, Pause, Save } from 'lucide-react'
+import { Sparkles, Loader2 as Spin } from 'lucide-react'
 import type { FlowStep } from '@/lib/actions/flow-builder'
-import { saveFlowAction, setFlowActiveAction } from '@/lib/actions/flow-builder'
+import { saveFlowAction, setFlowActiveAction, aiGenerateFlow } from '@/lib/actions/flow-builder'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -28,6 +29,18 @@ export function FlowEditor({
   const [steps, setSteps] = useState<FlowStep[]>(initialSteps)
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [aiDesc, setAiDesc] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiErr, setAiErr] = useState('')
+
+  async function aiBuild() {
+    setAiErr(''); setAiBusy(true)
+    try {
+      const res = await aiGenerateFlow(aiDesc)
+      if (res.error) setAiErr(res.error)
+      else if (res.steps) setSteps(res.steps)
+    } finally { setAiBusy(false) }
+  }
 
   function addStep(type: FlowStep['type']) {
     setSteps((s) => [...s, { id: uid(), type, message: '', tag: '', hours: 24 }])
@@ -62,6 +75,16 @@ export function FlowEditor({
           </form>
           <Button onClick={save} disabled={busy}>{busy ? 'Saving…' : saved ? 'Saved ✓' : <><Save className="h-4 w-4" /> Save</>}</Button>
         </div>
+      </div>
+
+      {/* AI build */}
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary"><Sparkles className="h-3.5 w-3.5" /> Build with AI</p>
+        <div className="flex items-center gap-2">
+          <Input value={aiDesc} onChange={(e) => setAiDesc(e.target.value)} placeholder="Describe the flow (e.g. welcome new DMs, ask their goal, tag them)" className="flex-1" />
+          <Button type="button" size="sm" onClick={aiBuild} disabled={aiBusy}>{aiBusy ? <Spin className="h-4 w-4 animate-spin" /> : 'Generate steps'}</Button>
+        </div>
+        {aiErr && <p className="mt-1 text-xs text-destructive">{aiErr}</p>}
       </div>
 
       {/* Trigger */}

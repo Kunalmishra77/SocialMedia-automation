@@ -6,6 +6,20 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership, roleCan } from '@/lib/authz'
 import { sendTelegramMessage } from '@/lib/channels/telegram'
 import { windowStatus } from '@/lib/inbox'
+import { callAI, aiConfigured } from '@/lib/ai/client'
+
+/** AI: draft a campaign broadcast message from a goal. */
+export async function aiGenerateCampaignMessage(goal: string): Promise<{ message?: string; error?: string }> {
+  await requireCampaigns()
+  if (!aiConfigured()) return { error: 'Add an OpenAI/OpenRouter key to use AI.' }
+  const g = goal.trim()
+  if (!g) return { error: 'Describe the campaign goal' }
+  const out = await callAI(
+    [{ role: 'user', content: `Write a short, friendly broadcast DM for this goal: "${g}". Under 45 words, 1 emoji, clear call-to-action. Return only the message.` }],
+    { maxTokens: 120, temperature: 0.8 },
+  )
+  return out ? { message: out.trim() } : { error: 'Generation failed' }
+}
 
 async function requireCampaigns() {
   const user = await getUser()

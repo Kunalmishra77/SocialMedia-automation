@@ -4,8 +4,38 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership, roleCan } from '@/lib/authz'
-import { generateEmbedding } from '@/lib/ai/client'
+import { generateEmbedding, callAI, aiConfigured } from '@/lib/ai/client'
 import { ingestDocument } from '@/lib/ai/vector'
+
+/** AI: draft a knowledge base entry (title + content) from a topic. */
+export async function aiGenerateKbEntry(topic: string): Promise<{ title?: string; content?: string; error?: string }> {
+  await requireManageKb()
+  if (!aiConfigured()) return { error: 'Add an OpenAI/OpenRouter key to use AI generation.' }
+  const t = topic.trim()
+  if (!t) return { error: 'Enter a topic' }
+  const out = await callAI(
+    [{ role: 'user', content: `Write a concise knowledge-base entry for a customer-support AI about: "${t}". Line 1: "TITLE: <short title>". Then the answer content in 2-5 sentences (facts only, no fluff).` }],
+    { maxTokens: 260, temperature: 0.5 },
+  )
+  if (!out) return { error: 'Generation failed' }
+  const m = out.match(/TITLE:\s*(.+)/i)
+  const title = m?.[1]?.trim() ?? t
+  const content = out.replace(/TITLE:.*(\n)?/i, '').trim()
+  return { title, content }
+}
+
+/** AI: draft/improve the AI persona from a business description. */
+export async function aiGeneratePersona(desc: string): Promise<{ persona?: string; error?: string }> {
+  await requireManageKb()
+  if (!aiConfigured()) return { error: 'Add an OpenAI/OpenRouter key to use AI generation.' }
+  const d = desc.trim()
+  if (!d) return { error: 'Describe your business' }
+  const out = await callAI(
+    [{ role: 'user', content: `Write a system persona (2-4 sentences) for an AI assistant that handles DMs for this business: "${d}". Define tone, what it helps with, and to hand off to a human when unsure. Return only the persona text.` }],
+    { maxTokens: 200, temperature: 0.6 },
+  )
+  return out ? { persona: out.trim() } : { error: 'Generation failed' }
+}
 
 async function requireManageKb(): Promise<string> {
   const user = await getUser()
