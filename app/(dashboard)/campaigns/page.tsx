@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CreateCampaign } from './create-campaign'
+import { PageHeader } from '@/components/dashboard/page-header'
 
 const STATUS_COLOR: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
@@ -26,12 +27,7 @@ export default async function CampaignsPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Campaigns</h1>
-          <p className="text-sm text-muted-foreground">{campaigns?.length ?? 0} total</p>
-        </div>
-      </div>
+      <PageHeader title="Campaigns" subtitle={`${campaigns?.length ?? 0} total`} />
 
       <CreateCampaign />
 

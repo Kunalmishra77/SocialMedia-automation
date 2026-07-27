@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { moveLeadStageAction } from '@/lib/actions/crm'
 import { AddLead } from './add-lead'
 import { AutoSubmitSelect } from '@/components/ui/auto-submit-select'
+import { PageHeader } from '@/components/dashboard/page-header'
 
 const STAGES: { key: string; label: string }[] = [
   { key: 'new', label: 'New' },
@@ -37,13 +38,7 @@ export default async function LeadsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Leads</h1>
-          <p className="text-sm text-muted-foreground">{leads?.length ?? 0} total</p>
-        </div>
-        <AddLead />
-      </div>
+      <PageHeader title="Leads" subtitle={`${leads?.length ?? 0} total`} action={<AddLead />} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
         {STAGES.map((s) => {

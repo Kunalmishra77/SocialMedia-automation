@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { PageHeader } from '@/components/dashboard/page-header'
 import { AddContact } from './add-contact'
 
 export default async function ContactsPage({
@@ -26,13 +27,7 @@ export default async function ContactsPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Contacts</h1>
-          <p className="text-sm text-muted-foreground">{contacts?.length ?? 0} shown</p>
-        </div>
-        <AddContact />
-      </div>
+      <PageHeader title="Contacts" subtitle={`${contacts?.length ?? 0} shown`} action={<AddContact />} />
 
       <form className="flex gap-2">
         <input

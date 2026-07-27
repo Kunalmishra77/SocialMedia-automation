@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageHeader } from '@/components/dashboard/page-header'
+import { platformByKey } from '@/lib/platforms'
 
 async function count(admin: ReturnType<typeof createAdminClient>, table: string, workspaceId: string, extra?: (q: any) => any) {
   let q = admin.from(table).select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId)
@@ -26,6 +28,12 @@ export default async function AnalyticsPage() {
     count(admin, 'campaign_recipients', ws, (q) => q.eq('status', 'sent')),
   ])
 
+  // Conversations by channel
+  const { data: convs } = await admin.from('conversations').select('channel').eq('workspace_id', ws)
+  const channelCounts: Record<string, number> = {}
+  for (const c of convs ?? []) channelCounts[c.channel] = (channelCounts[c.channel] ?? 0) + 1
+  const maxChannel = Math.max(1, ...Object.values(channelCounts))
+
   // Leads by stage
   const { data: leads } = await admin.from('leads').select('stage, value').eq('workspace_id', ws)
   const stages = ['new', 'contacted', 'follow_up', 'interested', 'converted', 'lost']
@@ -46,10 +54,7 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
-        <p className="text-sm text-muted-foreground">A live snapshot of {active.name}.</p>
-      </div>
+      <PageHeader title="Analytics" subtitle={`A live snapshot of ${active.name}.`} />
 
       <div className="grid gap-4 sm:grid-cols-3">
         {kpis.map((k) => (
@@ -63,6 +68,26 @@ export default async function AnalyticsPage() {
           </Card>
         ))}
       </div>
+
+      {Object.keys(channelCounts).length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Conversations by channel</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {Object.entries(channelCounts).map(([ch, n]) => {
+              const p = platformByKey(ch)
+              return (
+                <div key={ch} className="flex items-center gap-3">
+                  <span className="w-24 shrink-0 text-sm capitalize text-muted-foreground">{p?.name ?? ch}</span>
+                  <div className="h-6 flex-1 rounded bg-muted">
+                    <div className="h-6 rounded" style={{ width: `${(n / maxChannel) * 100}%`, background: p?.accent ?? 'var(--primary)' }} />
+                  </div>
+                  <span className="w-8 text-right text-sm font-medium">{n}</span>
+                </div>
+              )
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader><CardTitle className="text-base">Lead pipeline</CardTitle></CardHeader>
