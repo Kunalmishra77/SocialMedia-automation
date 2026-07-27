@@ -2,8 +2,10 @@ import { redirect } from 'next/navigation'
 import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { deletePostAction } from '@/lib/actions/content'
+import Link from 'next/link'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { CreatePost } from './create-post'
+import { ContentCalendar } from './content-calendar'
 
 const STATUS_COLOR: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
@@ -12,11 +14,13 @@ const STATUS_COLOR: Record<string, string> = {
   failed: 'bg-red-500/15 text-red-600',
 }
 
-export default async function ContentPage() {
+export default async function ContentPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const user = await requireUser()
   const { active } = await getActiveMembership(user.id)
   if (!active) redirect('/workspace/new')
   if (active.role === 'agent') redirect('/')
+  const { view } = await searchParams
+  const isCalendar = view === 'calendar'
 
   const admin = createAdminClient()
   const { data: posts } = await admin
@@ -28,9 +32,18 @@ export default async function ContentPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <PageHeader title="Content" subtitle="Plan, schedule and publish your posts — with AI captions." />
-      <CreatePost />
 
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1 text-sm">
+          <Link href="/content" className={`rounded-md px-3 py-1 ${!isCalendar ? 'bg-card font-medium shadow-[var(--shadow-sm)]' : 'text-muted-foreground'}`}>List</Link>
+          <Link href="/content?view=calendar" className={`rounded-md px-3 py-1 ${isCalendar ? 'bg-card font-medium shadow-[var(--shadow-sm)]' : 'text-muted-foreground'}`}>Calendar</Link>
+        </div>
+        <CreatePost />
+      </div>
 
+      {isCalendar && <ContentCalendar posts={(posts ?? []) as never} />}
+
+      {!isCalendar && (
       <div className="grid gap-3 sm:grid-cols-2">
         {(!posts || posts.length === 0) && (
           <p className="col-span-full py-10 text-center text-sm text-muted-foreground">
@@ -63,6 +76,7 @@ export default async function ContentPage() {
           </div>
         ))}
       </div>
+      )}
 
       <p className="text-center text-xs text-muted-foreground">
         Scheduled posts publish automatically once Instagram is connected (Content Publishing API).
