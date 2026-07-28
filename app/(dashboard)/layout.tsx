@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireUser, getActiveMembership, type WorkspaceMembership } from '@/lib/authz'
+import { getUser, getActiveMembership, type WorkspaceMembership } from '@/lib/authz'
 import { getImpersonation } from '@/lib/impersonation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Sidebar } from '@/components/dashboard/sidebar'
@@ -17,7 +17,8 @@ async function unreadCount(userId: string): Promise<number> {
 }
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireUser()
+  const user = await getUser()
+  if (!user) redirect('/welcome')
 
   // Impersonation takes precedence over the user's own memberships.
   const impersonation = await getImpersonation(user.id)
