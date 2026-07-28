@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Socialflow — Social Media Automation Platform",
-  description: "Run all your social media from one inbox.",
+  title: "AI-Agentix SocialFlow — Social Media Automation Platform",
+  description: "AI Applied, Growth Multiplied. Run all your social media from one intelligent inbox.",
 };
 
 export default function RootLayout({

@@ -9,6 +9,7 @@ import {
   Activity, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { BrandLogo } from '@/components/brand-logo'
 import type { MembershipRole, WorkspaceMembership } from '@/lib/authz'
 import { switchWorkspaceAction } from '@/lib/actions/workspace'
 
@@ -97,9 +98,8 @@ export function Sidebar({
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-border bg-card">
       {/* Brand */}
-      <div className="flex h-16 items-center gap-2 px-5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg brand-gradient text-sm font-bold text-white">◐</span>
-        <span className="text-base font-bold tracking-tight">Socialflow</span>
+      <div className="flex h-16 items-center px-5">
+        <BrandLogo size="md" />
       </div>
 
       {/* Workspace card */}

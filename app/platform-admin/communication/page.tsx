@@ -18,16 +18,16 @@ export default async function CommunicationPage() {
         <Panel title="New announcement" className="lg:col-span-2">
           <form action={createAnnouncementAction} className="space-y-3">
             <div>
-              <label className="mb-1 block text-xs text-zinc-400">Title</label>
-              <input name="title" required placeholder="Scheduled maintenance" className="h-10 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 placeholder:text-zinc-600" />
+              <label className="mb-1 block text-xs text-muted-foreground">Title</label>
+              <input name="title" required placeholder="Scheduled maintenance" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground" />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-zinc-400">Message</label>
-              <textarea name="body" required rows={4} placeholder="We'll be upgrading our systems on…" className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600" />
+              <label className="mb-1 block text-xs text-muted-foreground">Message</label>
+              <textarea name="body" required rows={4} placeholder="We'll be upgrading our systems on…" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground" />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-zinc-400">Audience</label>
-              <select name="scope" defaultValue="all" className="h-10 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100">
+              <label className="mb-1 block text-xs text-muted-foreground">Audience</label>
+              <select name="scope" defaultValue="all" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground">
                 <option value="all">All clients</option>
                 <option value="starter">Starter plan</option>
                 <option value="pro">Pro plan</option>
@@ -35,11 +35,11 @@ export default async function CommunicationPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-zinc-400">Schedule for (optional)</label>
-              <input type="datetime-local" name="scheduledFor" className="h-10 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100" />
-              <p className="mt-1 text-[11px] text-zinc-600">Leave empty to publish now.</p>
+              <label className="mb-1 block text-xs text-muted-foreground">Schedule for (optional)</label>
+              <input type="datetime-local" name="scheduledFor" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground" />
+              <p className="mt-1 text-[11px] text-muted-foreground">Leave empty to publish now.</p>
             </div>
-            <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-500">
+            <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#ea6a24] text-sm font-medium text-white hover:bg-[#ea6a24]">
               <Send className="h-4 w-4" /> Publish / schedule
             </button>
           </form>
@@ -47,8 +47,8 @@ export default async function CommunicationPage() {
 
         <Panel title="Published" className="lg:col-span-3">
           {announcements.length === 0 ? (
-            <div className="py-8 text-center text-sm text-zinc-500">
-              <Radio className="mx-auto mb-2 h-6 w-6 text-zinc-700" />
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              <Radio className="mx-auto mb-2 h-6 w-6 text-muted-foreground/50" />
               No announcements yet.
             </div>
           ) : (
@@ -57,17 +57,17 @@ export default async function CommunicationPage() {
                 const scope = (a.audience?.scope as string) === 'plan' ? `${a.audience?.plan} plan` : 'all clients'
                 const scheduled = !a.published_at && a.scheduled_for
                 return (
-                  <div key={a.id} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+                  <div key={a.id} className="rounded-lg border border-border bg-background/50 p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-zinc-200">{a.title}</p>
+                      <p className="text-sm font-semibold text-foreground">{a.title}</p>
                       {scheduled ? (
                         <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-400">scheduled · {new Date(a.scheduled_for as string).toLocaleString()}</span>
                       ) : (
-                        <span className="shrink-0 text-xs text-zinc-500">{timeAgo(a.published_at ?? a.created_at)}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(a.published_at ?? a.created_at)}</span>
                       )}
                     </div>
-                    <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-400">{a.body}</p>
-                    <p className="mt-2 text-xs capitalize text-indigo-400">→ {scope}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{a.body}</p>
+                    <p className="mt-2 text-xs capitalize text-[#ea6a24]">→ {scope}</p>
                   </div>
                 )
               })}

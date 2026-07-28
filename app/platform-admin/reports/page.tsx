@@ -26,23 +26,23 @@ export default async function ReportsPage() {
               <a
                 key={r.type}
                 href={`/api/platform-admin/reports/${r.type}`}
-                className="group flex items-start justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/50 p-4 transition-colors hover:border-zinc-700 hover:bg-zinc-800/40"
+                className="group flex items-start justify-between gap-3 rounded-lg border border-border bg-background/50 p-4 transition-colors hover:border-input hover:bg-muted/40"
               >
                 <div className="flex gap-3">
-                  <Icon className="mt-0.5 h-5 w-5 text-indigo-400" />
+                  <Icon className="mt-0.5 h-5 w-5 text-[#ea6a24]" />
                   <div>
-                    <p className="text-sm font-medium text-zinc-200">{r.label}</p>
-                    <p className="text-xs text-zinc-500">{r.desc}</p>
+                    <p className="text-sm font-medium text-foreground">{r.label}</p>
+                    <p className="text-xs text-muted-foreground">{r.desc}</p>
                   </div>
                 </div>
-                <FileDown className="h-4 w-4 shrink-0 text-zinc-600 group-hover:text-indigo-400" />
+                <FileDown className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-[#ea6a24]" />
               </a>
             )
           })}
         </div>
       </Panel>
 
-      <p className="text-xs text-zinc-600">CSV exports open in Excel / Google Sheets. Each export is audit-logged. PDF export is on the roadmap.</p>
+      <p className="text-xs text-muted-foreground">CSV exports open in Excel / Google Sheets. Each export is audit-logged. PDF export is on the roadmap.</p>
     </div>
   )
 }

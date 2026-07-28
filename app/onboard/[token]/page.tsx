@@ -11,7 +11,7 @@ export default async function OnboardPage({ params }: { params: Promise<{ token:
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted/40 p-6">
         <div className="max-w-sm text-center">
-          <span className="brand-gradient-text text-lg font-bold">◐ Socialflow</span>
+          <span className="text-lg font-extrabold tracking-tight"><span className="text-primary">A</span>GENT<span className="text-primary">i</span>X <span className="text-muted-foreground">SocialFlow</span></span>
           <h1 className="mt-3 text-xl font-bold">Link unavailable</h1>
           <p className="mt-1 text-sm text-muted-foreground">{state.reason}</p>
         </div>

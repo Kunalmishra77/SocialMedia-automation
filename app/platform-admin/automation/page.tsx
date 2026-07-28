@@ -21,39 +21,39 @@ export default async function AutomationEnginePage() {
       </div>
 
       {/* Queues */}
-      <Panel title="Job queues" right={<Repeat className="h-4 w-4 text-zinc-600" />}>
-        <div className="divide-y divide-zinc-800">
+      <Panel title="Job queues" right={<Repeat className="h-4 w-4 text-muted-foreground" />}>
+        <div className="divide-y divide-border">
           {e.queues.map((q) => (
             <div key={q.name} className="flex items-center justify-between py-2.5 text-sm">
-              <span className="flex items-center gap-2 text-zinc-300">
+              <span className="flex items-center gap-2 text-foreground">
                 <StatusDot state={q.tone === 'error' ? 'down' : q.tone === 'busy' ? 'warning' : 'ok'} />
                 {q.name}
-                <span className="text-xs text-zinc-600">{q.cron}</span>
+                <span className="text-xs text-muted-foreground">{q.cron}</span>
               </span>
               <span className="text-xs">
-                <span className="text-zinc-200">{q.pending} pending</span>
-                {q.failed !== undefined && <span className={q.failed > 0 ? 'ml-2 text-red-400' : 'ml-2 text-zinc-600'}>{q.failed} failed</span>}
+                <span className="text-foreground">{q.pending} pending</span>
+                {q.failed !== undefined && <span className={q.failed > 0 ? 'ml-2 text-red-400' : 'ml-2 text-muted-foreground'}>{q.failed} failed</span>}
               </span>
             </div>
           ))}
         </div>
-        <p className="mt-3 text-xs text-zinc-600">Queues are DB-backed and drained by pg_cron workers. Retries are idempotent (dedup on external message id) so re-runs never double-send.</p>
+        <p className="mt-3 text-xs text-muted-foreground">Queues are DB-backed and drained by pg_cron workers. Retries are idempotent (dedup on external message id) so re-runs never double-send.</p>
       </Panel>
 
       {/* Recent flow activity */}
       <Panel title="Recent flow activity">
         {e.recent.length === 0 ? (
-          <p className="text-sm text-zinc-500">No automations yet.</p>
+          <p className="text-sm text-muted-foreground">No automations yet.</p>
         ) : (
-          <div className="divide-y divide-zinc-800">
+          <div className="divide-y divide-border">
             {e.recent.map((f, i) => (
               <div key={i} className="flex items-center justify-between py-2.5 text-sm">
-                <span className="flex items-center gap-2 text-zinc-300">
+                <span className="flex items-center gap-2 text-foreground">
                   <StatusDot state={f.is_active ? 'operational' : 'down'} />
                   {f.name}
-                  <span className="text-xs text-zinc-600">{f.workspace}</span>
+                  <span className="text-xs text-muted-foreground">{f.workspace}</span>
                 </span>
-                <span className="text-xs text-zinc-500">{f.run_count} runs · last {timeAgo(f.last_run_at)}</span>
+                <span className="text-xs text-muted-foreground">{f.run_count} runs · last {timeAgo(f.last_run_at)}</span>
               </div>
             ))}
           </div>

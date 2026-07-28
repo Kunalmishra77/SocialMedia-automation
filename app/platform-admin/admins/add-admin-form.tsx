@@ -12,21 +12,21 @@ export function AddAdminForm() {
   )
 
   return (
-    <form action={formAction} className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+    <form action={formAction} className="space-y-3 rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex-1">
-          <label className="mb-1 block text-xs text-zinc-400">User email (must have signed up)</label>
+          <label className="mb-1 block text-xs text-muted-foreground">User email (must have signed up)</label>
           <input
             name="email"
             type="email"
             required
             placeholder="teammate@company.com"
-            className="h-10 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 placeholder:text-zinc-600"
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-zinc-400">Role</label>
-          <select name="role" defaultValue="platform_support" className="h-10 rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100">
+          <label className="mb-1 block text-xs text-muted-foreground">Role</label>
+          <select name="role" defaultValue="platform_support" className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground">
             {ROLES.map((r) => (
               <option key={r} value={r}>
                 {r.replace('platform_', '')}
@@ -34,7 +34,7 @@ export function AddAdminForm() {
             ))}
           </select>
         </div>
-        <button disabled={pending} className="h-10 rounded-md bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50">
+        <button disabled={pending} className="h-10 rounded-md bg-[#ea6a24] px-4 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50">
           {pending ? 'Adding…' : 'Grant access'}
         </button>
       </div>

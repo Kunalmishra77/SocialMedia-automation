@@ -1,22 +1,27 @@
 @import "tailwindcss";
 
 :root {
-  /* Surfaces */
-  --background: #fafafa;
-  --foreground: #18181b;
+  /* Surfaces — AI-Agentix light theme */
+  --background: #f7f8fa;
+  --foreground: #16233a;       /* AI-Agentix navy — premium heading/body ink */
   --card: #ffffff;
-  --muted: #f4f4f5;
-  --muted-foreground: #52525b;
-  --border: #e7e7ea;
-  --input: #e0e0e4;
-  --ring: #e11d48;
+  --muted: #f1f3f6;
+  --muted-foreground: #5a6577;
+  --border: #e6e9ef;
+  --input: #dfe3ea;
+  --ring: #ea6a24;
 
-  /* Brand */
-  --primary: #e11d48;          /* rose-600 — ties to the IG gradient, accessible */
+  /* Brand — AI-Agentix (orange + navy) */
+  --primary: #ea6a24;          /* AI-Agentix orange, accessible on white */
   --primary-foreground: #ffffff;
-  --accent: #2563eb;           /* engagement blue for links/secondary emphasis */
+  --accent: #16233a;           /* AI-Agentix navy for secondary emphasis */
   --accent-foreground: #ffffff;
   --destructive: #dc2626;
+
+  /* Platform Console (Super Admin) navy surfaces */
+  --console: #0f1a2e;          /* refined navy base (not black) */
+  --console-elevated: #17233a; /* panels/cards */
+  --console-border: #26344d;
 
   --radius: 0.7rem;
 
@@ -74,15 +79,19 @@ a, button, select, input, [role="button"] {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Brand gradient — vibrant social accent used on auth panels, logo, avatars */
+/* Brand gradient — AI-Agentix orange, used on auth panels, logo, avatars */
 .brand-gradient {
-  background: linear-gradient(135deg, #f9ce34 0%, #ee2a7b 45%, #6228d7 100%);
+  background: linear-gradient(135deg, #f79a4b 0%, #ea6a24 55%, #d1551a 100%);
 }
 .brand-gradient-text {
-  background: linear-gradient(135deg, #f9ce34 0%, #ee2a7b 45%, #6228d7 100%);
+  background: linear-gradient(135deg, #f79a4b 0%, #ea6a24 55%, #d1551a 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+/* AI-Agentix navy console gradient (Platform Console auth / headers) */
+.console-gradient {
+  background: linear-gradient(160deg, #17233a 0%, #0f1a2e 100%);
 }
 
 /* Refined scrollbars */

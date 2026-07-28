@@ -10,7 +10,7 @@ function StatusBadge({ status }: { status: string }) {
     deleted: 'bg-red-500/15 text-red-400',
   }
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs capitalize ${styles[status] ?? 'bg-zinc-700 text-zinc-300'}`}>
+    <span className={`rounded-full px-2 py-0.5 text-xs capitalize ${styles[status] ?? 'bg-muted text-foreground'}`}>
       {status}
     </span>
   )
@@ -30,7 +30,7 @@ export default async function WorkspacesListPage({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Workspaces</h1>
-          <p className="text-sm text-zinc-400">{workspaces.length} shown</p>
+          <p className="text-sm text-muted-foreground">{workspaces.length} shown</p>
         </div>
         <CreateClient />
       </div>
@@ -40,14 +40,14 @@ export default async function WorkspacesListPage({
           name="search"
           defaultValue={search ?? ''}
           placeholder="Search by name, slug, or owner email…"
-          className="h-10 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+          className="h-10 flex-1 rounded-md border border-input bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-600"
         />
-        <button className="rounded-md bg-zinc-800 px-4 text-sm hover:bg-zinc-700">Search</button>
+        <button className="rounded-md bg-muted px-4 text-sm hover:bg-muted">Search</button>
       </form>
 
-      <div className="overflow-hidden rounded-lg border border-zinc-800">
+      <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full text-sm">
-          <thead className="bg-zinc-900 text-zinc-400">
+          <thead className="bg-card text-muted-foreground">
             <tr>
               <th className="px-4 py-2 text-left font-medium">Workspace</th>
               <th className="px-4 py-2 text-left font-medium">Plan</th>
@@ -56,16 +56,16 @@ export default async function WorkspacesListPage({
               <th className="px-4 py-2 text-left font-medium">Owner</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950">
+          <tbody className="divide-y divide-border bg-background">
             {workspaces.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                   No workspaces found.
                 </td>
               </tr>
             )}
             {workspaces.map((w) => (
-              <tr key={w.id} className="hover:bg-zinc-900">
+              <tr key={w.id} className="hover:bg-card">
                 <td className="px-4 py-3">
                   <Link
                     href={`/platform-admin/workspaces/${w.id}`}
@@ -73,12 +73,12 @@ export default async function WorkspacesListPage({
                   >
                     {w.name}
                   </Link>
-                  <div className="text-xs text-zinc-500">/{w.slug}</div>
+                  <div className="text-xs text-muted-foreground">/{w.slug}</div>
                 </td>
-                <td className="px-4 py-3 capitalize text-zinc-300">{w.plan}</td>
+                <td className="px-4 py-3 capitalize text-foreground">{w.plan}</td>
                 <td className="px-4 py-3"><StatusBadge status={w.status} /></td>
-                <td className="px-4 py-3 text-zinc-300">{w.memberCount}</td>
-                <td className="px-4 py-3 text-zinc-400">{w.owner_email ?? '—'}</td>
+                <td className="px-4 py-3 text-foreground">{w.memberCount}</td>
+                <td className="px-4 py-3 text-muted-foreground">{w.owner_email ?? '—'}</td>
               </tr>
             ))}
           </tbody>

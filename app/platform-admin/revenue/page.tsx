@@ -6,7 +6,7 @@ import { PageHeader, Panel, Stat, Bar, inr, timeAgo } from '../ui'
 
 const STATUS_STYLE: Record<string, string> = {
   demo_paid: 'text-emerald-400',
-  unpaid: 'text-zinc-500',
+  unpaid: 'text-muted-foreground',
 }
 
 export default async function RevenuePage() {
@@ -41,7 +41,7 @@ export default async function RevenuePage() {
 
         <Panel title="Top clients by MRR">
           {r.topClients.length === 0 ? (
-            <p className="text-sm text-zinc-500">No paying clients yet.</p>
+            <p className="text-sm text-muted-foreground">No paying clients yet.</p>
           ) : (
             <div className="space-y-3">
               {r.topClients.map((c, i) => (
@@ -54,25 +54,25 @@ export default async function RevenuePage() {
 
       <Panel title="Recent payments">
         {r.payments.length === 0 ? (
-          <p className="text-sm text-zinc-500">No payments recorded yet.</p>
+          <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-800 text-left text-xs uppercase tracking-wide text-zinc-500">
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="pb-2 font-medium">Client</th>
                   <th className="pb-2 font-medium">Amount</th>
                   <th className="pb-2 font-medium">Status</th>
                   <th className="pb-2 text-right font-medium">When</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800">
+              <tbody className="divide-y divide-border">
                 {r.payments.map((p, i) => (
                   <tr key={i}>
-                    <td className="py-2.5 text-zinc-200">{p.name}</td>
-                    <td className="py-2.5 text-zinc-300">{p.amount ? inr(Number(p.amount)) : '—'}</td>
-                    <td className={`py-2.5 capitalize ${STATUS_STYLE[p.status] ?? 'text-zinc-400'}`}>{p.status.replace('_', ' ')}</td>
-                    <td className="py-2.5 text-right text-zinc-500">{timeAgo(p.at)}</td>
+                    <td className="py-2.5 text-foreground">{p.name}</td>
+                    <td className="py-2.5 text-foreground">{p.amount ? inr(Number(p.amount)) : '—'}</td>
+                    <td className={`py-2.5 capitalize ${STATUS_STYLE[p.status] ?? 'text-muted-foreground'}`}>{p.status.replace('_', ' ')}</td>
+                    <td className="py-2.5 text-right text-muted-foreground">{timeAgo(p.at)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -81,7 +81,7 @@ export default async function RevenuePage() {
         )}
       </Panel>
 
-      <p className="text-xs text-zinc-600">
+      <p className="text-xs text-muted-foreground">
         MRR is computed from active workspaces × their plan price. When Razorpay is connected, real charges and refunds will replace demo payments here.
       </p>
     </div>

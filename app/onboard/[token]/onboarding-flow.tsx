@@ -72,7 +72,7 @@ export function OnboardingFlow({
       if (order.demo || !order.orderId) { setPayError(order.error || 'Payment unavailable.'); return }
       if (!(await loadRazorpay()) || !window.Razorpay) { setPayError('Could not load payment.'); return }
       const rzp = new window.Razorpay({
-        key: order.keyId, amount: order.amount, currency: 'INR', name: 'Socialflow',
+        key: order.keyId, amount: order.amount, currency: 'INR', name: 'AI-Agentix SocialFlow',
         description: `${selected.name} plan`, order_id: order.orderId, theme: { color: '#e11d48' },
         handler: async (resp: Record<string, string>) => {
           const fd = new FormData()
@@ -113,7 +113,7 @@ export function OnboardingFlow({
             <div className="brand-gradient mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl text-white">
               <Sparkles className="h-8 w-8" />
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">Welcome to Socialflow</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Welcome to <span className="brand-gradient-text">AGENTiX</span> SocialFlow</h1>
             <p className="mx-auto mt-2 max-w-xl text-muted-foreground">
               The all-in-one AI automation platform for <b>{workspaceName}</b>. Automate DMs, comments,
               content and leads across every channel — set up in minutes.

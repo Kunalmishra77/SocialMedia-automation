@@ -15,26 +15,26 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       <PageHeader title="Search" subtitle="Find clients, tickets and operators across the platform." />
 
       <form method="GET" className="relative">
-        <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+        <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
         <input
           name="q"
           defaultValue={q}
           autoFocus
           placeholder="Search name, email, company, ticket…"
-          className="h-11 w-full rounded-lg border border-zinc-700 bg-zinc-950 pl-9 pr-3 text-sm text-zinc-100 placeholder:text-zinc-600"
+          className="h-11 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground"
         />
       </form>
 
-      {q.trim().length < 2 && <p className="text-sm text-zinc-500">Type at least 2 characters.</p>}
-      {empty && <p className="text-sm text-zinc-500">No matches for “{q}”.</p>}
+      {q.trim().length < 2 && <p className="text-sm text-muted-foreground">Type at least 2 characters.</p>}
+      {empty && <p className="text-sm text-muted-foreground">No matches for “{q}”.</p>}
 
       {r.workspaces.length > 0 && (
         <Panel title="Clients">
-          <div className="divide-y divide-zinc-800">
+          <div className="divide-y divide-border">
             {r.workspaces.map((w) => (
-              <Link key={w.id} href={`/platform-admin/workspaces/${w.id}`} className="flex items-center justify-between py-2.5 text-sm hover:bg-zinc-800/40">
-                <span className="flex items-center gap-2 text-zinc-200"><Building2 className="h-4 w-4 text-zinc-500" />{w.name}<span className="text-xs text-zinc-500">{w.owner_email}</span></span>
-                <span className="text-xs capitalize text-zinc-500">{w.plan} · {w.status}</span>
+              <Link key={w.id} href={`/platform-admin/workspaces/${w.id}`} className="flex items-center justify-between py-2.5 text-sm hover:bg-muted/40">
+                <span className="flex items-center gap-2 text-foreground"><Building2 className="h-4 w-4 text-muted-foreground" />{w.name}<span className="text-xs text-muted-foreground">{w.owner_email}</span></span>
+                <span className="text-xs capitalize text-muted-foreground">{w.plan} · {w.status}</span>
               </Link>
             ))}
           </div>
@@ -43,11 +43,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
       {r.tickets.length > 0 && (
         <Panel title="Tickets">
-          <div className="divide-y divide-zinc-800">
+          <div className="divide-y divide-border">
             {r.tickets.map((t) => (
-              <Link key={t.id} href={`/platform-admin/support/${t.id}`} className="flex items-center justify-between py-2.5 text-sm hover:bg-zinc-800/40">
-                <span className="flex items-center gap-2 text-zinc-200"><LifeBuoy className="h-4 w-4 text-zinc-500" />{t.subject}<span className="text-xs text-zinc-500">{t.workspace_name}</span></span>
-                <span className="text-xs capitalize text-zinc-500">{t.status.replace('_', ' ')}</span>
+              <Link key={t.id} href={`/platform-admin/support/${t.id}`} className="flex items-center justify-between py-2.5 text-sm hover:bg-muted/40">
+                <span className="flex items-center gap-2 text-foreground"><LifeBuoy className="h-4 w-4 text-muted-foreground" />{t.subject}<span className="text-xs text-muted-foreground">{t.workspace_name}</span></span>
+                <span className="text-xs capitalize text-muted-foreground">{t.status.replace('_', ' ')}</span>
               </Link>
             ))}
           </div>
@@ -56,11 +56,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
       {r.audit.length > 0 && (
         <Panel title="Audit log">
-          <div className="divide-y divide-zinc-800">
+          <div className="divide-y divide-border">
             {r.audit.map((a, i) => (
-              <Link key={i} href="/platform-admin/audit" className="flex items-center justify-between py-2 text-sm hover:bg-zinc-800/40">
-                <span className="flex items-center gap-2 text-zinc-300"><ScrollText className="h-4 w-4 text-zinc-500" /><span className="font-mono text-xs text-indigo-400">{a.action}</span> {a.label ?? ''}</span>
-                <span className="text-xs text-zinc-500">{a.email.split('@')[0]}</span>
+              <Link key={i} href="/platform-admin/audit" className="flex items-center justify-between py-2 text-sm hover:bg-muted/40">
+                <span className="flex items-center gap-2 text-foreground"><ScrollText className="h-4 w-4 text-muted-foreground" /><span className="font-mono text-xs text-[#ea6a24]">{a.action}</span> {a.label ?? ''}</span>
+                <span className="text-xs text-muted-foreground">{a.email.split('@')[0]}</span>
               </Link>
             ))}
           </div>
@@ -69,11 +69,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
       {r.admins.length > 0 && (
         <Panel title="Operators">
-          <div className="divide-y divide-zinc-800">
+          <div className="divide-y divide-border">
             {r.admins.map((a, i) => (
-              <Link key={i} href="/platform-admin/admins" className="flex items-center justify-between py-2.5 text-sm hover:bg-zinc-800/40">
-                <span className="flex items-center gap-2 text-zinc-200"><ShieldCheck className="h-4 w-4 text-emerald-400" />{a.email}</span>
-                <span className="text-xs capitalize text-zinc-500">{a.role.replace('platform_', '')}</span>
+              <Link key={i} href="/platform-admin/admins" className="flex items-center justify-between py-2.5 text-sm hover:bg-muted/40">
+                <span className="flex items-center gap-2 text-foreground"><ShieldCheck className="h-4 w-4 text-emerald-400" />{a.email}</span>
+                <span className="text-xs capitalize text-muted-foreground">{a.role.replace('platform_', '')}</span>
               </Link>
             ))}
           </div>

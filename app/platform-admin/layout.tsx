@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import {
-  ShieldCheck, LayoutDashboard, Building2, ScrollText, Flag, Users, BadgeCheck,
+  LayoutDashboard, Building2, ScrollText, Flag, Users, BadgeCheck,
   IndianRupee, BarChart3, Activity, Radio, Lock, LifeBuoy, Settings, Package,
   Search, FileDown, Network, CreditCard, GitBranch, Sparkles, Zap, Plug,
 } from 'lucide-react'
 import { requirePlatformAdmin } from '@/lib/platform-admin/auth'
 import { logoutAction } from '@/lib/actions/auth'
+import { BrandLogo } from '@/components/brand-logo'
 import { CommandPalette } from './command-palette'
 
 const NAV_GROUPS = [
@@ -59,17 +60,17 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
   const ctx = await requirePlatformAdmin()
 
   return (
-    <div className="flex h-screen overflow-hidden bg-zinc-950 text-zinc-100">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
       <CommandPalette />
-      <aside className="flex w-60 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
-        <div className="flex h-14 items-center gap-2 border-b border-zinc-800 px-4">
-          <ShieldCheck className="h-5 w-5 text-emerald-400" />
-          <span className="text-sm font-bold">Platform Console</span>
+      <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-card">
+        <div className="flex h-16 flex-col justify-center gap-0.5 border-b border-border px-4">
+          <BrandLogo tone="light" size="sm" product={false} />
+          <span className="pl-7 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">Platform Console</span>
         </div>
         <nav className="flex-1 space-y-4 overflow-y-auto p-2">
           {NAV_GROUPS.map((g, gi) => (
             <div key={gi}>
-              {g.label && <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">{g.label}</p>}
+              {g.label && <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{g.label}</p>}
               <div className="space-y-0.5">
                 {g.items.map((item) => {
                   const Icon = item.icon
@@ -77,7 +78,7 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
+                      className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                       <Icon className="h-4 w-4" />
                       {item.label}
@@ -88,28 +89,30 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
             </div>
           ))}
         </nav>
-        <div className="border-t border-zinc-800 p-3 text-xs text-zinc-400">
-          <p className="truncate font-medium text-zinc-200">{ctx.email}</p>
-          <p className="capitalize">{ctx.role.replace('_', ' ')}</p>
-          <Link href="/" className="mt-2 inline-block text-emerald-400 hover:underline">
-            ← Back to app
-          </Link>
+        <div className="border-t border-border p-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-xs font-bold text-primary">{(ctx.email || '?').charAt(0).toUpperCase()}</span>
+            <div className="min-w-0">
+              <p className="truncate font-medium text-foreground">{ctx.email}</p>
+              <p className="capitalize text-muted-foreground">{ctx.role.replace('_', ' ')}</p>
+            </div>
+          </div>
         </div>
       </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-zinc-800 bg-zinc-900 px-6">
+        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-6">
           <form method="GET" action="/platform-admin/search" className="relative max-w-md flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-2 h-4 w-4 text-zinc-500" />
+            <Search className="pointer-events-none absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
             <input
               name="q"
               placeholder="Search clients, tickets, operators…"
-              className="h-8 w-full rounded-md border border-zinc-800 bg-zinc-950 pl-8 pr-12 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-700 focus:outline-none"
+              className="h-8 w-full rounded-md border border-border bg-background pl-8 pr-12 text-sm text-foreground placeholder:text-muted-foreground focus:border-input focus:outline-none"
             />
-            <kbd className="pointer-events-none absolute right-2 top-1.5 rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-500">⌘K</kbd>
+            <kbd className="pointer-events-none absolute right-2 top-1.5 rounded border border-input px-1.5 py-0.5 text-[10px] text-muted-foreground">⌘K</kbd>
           </form>
           <form action={logoutAction}>
-            <button type="submit" className="shrink-0 text-sm text-zinc-400 hover:text-white">
+            <button type="submit" className="shrink-0 text-sm text-muted-foreground hover:text-foreground">
               Log out
             </button>
           </form>

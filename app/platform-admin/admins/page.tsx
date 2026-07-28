@@ -20,14 +20,14 @@ export default async function AdminsPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Platform admins</h1>
-        <p className="text-sm text-zinc-400">Who can access this operator console.</p>
+        <p className="text-sm text-muted-foreground">Who can access this operator console.</p>
       </div>
 
       <AddAdminForm />
 
-      <div className="overflow-hidden rounded-lg border border-zinc-800">
+      <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full text-sm">
-          <thead className="bg-zinc-900 text-zinc-400">
+          <thead className="bg-card text-muted-foreground">
             <tr>
               <th className="px-4 py-2 text-left font-medium">Email</th>
               <th className="px-4 py-2 text-left font-medium">Role</th>
@@ -36,21 +36,21 @@ export default async function AdminsPage() {
               <th className="px-4 py-2 text-right font-medium">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800 bg-zinc-950">
+          <tbody className="divide-y divide-border bg-background">
             {admins.map((a) => (
               <tr key={a.id}>
-                <td className="px-4 py-3 text-zinc-200">{a.email}</td>
+                <td className="px-4 py-3 text-foreground">{a.email}</td>
                 <td className="px-4 py-3">
                   <form action={setPlatformAdminRoleAction} className="inline">
                     <input type="hidden" name="id" value={a.id} />
                     <select
                       name="role"
                       defaultValue={a.role}
-                      className="h-8 rounded-md border border-zinc-700 bg-zinc-950 px-2 text-xs capitalize text-zinc-200"
+                      className="h-8 rounded-md border border-input bg-background px-2 text-xs capitalize text-foreground"
                     >
                       {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
                     </select>
-                    <button className="ml-1 rounded-md bg-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700">Set</button>
+                    <button className="ml-1 rounded-md bg-muted px-2 py-1 text-xs text-foreground hover:bg-muted">Set</button>
                   </form>
                 </td>
                 <td className="px-4 py-3">
@@ -64,7 +64,7 @@ export default async function AdminsPage() {
                   {a.is_active ? (
                     <span className="text-emerald-400">active</span>
                   ) : (
-                    <span className="text-zinc-500">disabled</span>
+                    <span className="text-muted-foreground">disabled</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-right">
@@ -74,8 +74,8 @@ export default async function AdminsPage() {
                     <button
                       className={`rounded-md px-3 py-1 text-xs ${
                         a.is_active
-                          ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-                          : 'bg-emerald-600 text-white hover:bg-emerald-500'
+                          ? 'bg-muted text-foreground hover:bg-muted'
+                          : 'bg-[#ea6a24] text-white hover:brightness-110'
                       }`}
                     >
                       {a.is_active ? 'Disable' : 'Enable'}
@@ -89,30 +89,30 @@ export default async function AdminsPage() {
       </div>
 
       {/* Granular per-admin permission overrides */}
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-5">
-        <h2 className="mb-1 text-sm font-semibold text-zinc-300">Granular permissions</h2>
-        <p className="mb-3 text-xs text-zinc-500">Role defaults are always applied (shown locked). Toggle extra grants beyond the role.</p>
+      <div className="rounded-lg border border-border bg-card p-5">
+        <h2 className="mb-1 text-sm font-semibold text-foreground">Granular permissions</h2>
+        <p className="mb-3 text-xs text-muted-foreground">Role defaults are always applied (shown locked). Toggle extra grants beyond the role.</p>
         <div className="space-y-2">
           {admins.map((a) => {
             const roleDefaults = PLATFORM_ROLE_PERMISSIONS[a.role as PlatformRole] ?? []
             return (
-              <details key={a.id} className="rounded-lg border border-zinc-800 bg-zinc-950/50">
-                <summary className="cursor-pointer px-3 py-2 text-sm text-zinc-200">{a.email} <span className="text-xs capitalize text-zinc-500">· {a.role.replace('platform_', '')}</span></summary>
-                <form action={setPlatformAdminPermissionsAction} className="border-t border-zinc-800 p-3">
+              <details key={a.id} className="rounded-lg border border-border bg-background/50">
+                <summary className="cursor-pointer px-3 py-2 text-sm text-foreground">{a.email} <span className="text-xs capitalize text-muted-foreground">· {a.role.replace('platform_', '')}</span></summary>
+                <form action={setPlatformAdminPermissionsAction} className="border-t border-border p-3">
                   <input type="hidden" name="id" value={a.id} />
                   <div className="grid gap-1.5 sm:grid-cols-2">
                     {ALL_PLATFORM_PERMISSIONS.map((p) => {
                       const byRole = roleDefaults.includes(p)
                       const checked = byRole || a.permissions.includes(p)
                       return (
-                        <label key={p} className={`flex items-center gap-2 text-xs ${byRole ? 'text-zinc-500' : 'text-zinc-300'}`}>
-                          <input type="checkbox" name={`perm_${p}`} defaultChecked={checked} disabled={byRole} className="accent-indigo-500" />
-                          {p.replace(/_/g, ' ')}{byRole && <span className="text-[10px] text-zinc-600">(role)</span>}
+                        <label key={p} className={`flex items-center gap-2 text-xs ${byRole ? 'text-muted-foreground' : 'text-foreground'}`}>
+                          <input type="checkbox" name={`perm_${p}`} defaultChecked={checked} disabled={byRole} className="accent-[#ea6a24]" />
+                          {p.replace(/_/g, ' ')}{byRole && <span className="text-[10px] text-muted-foreground">(role)</span>}
                         </label>
                       )
                     })}
                   </div>
-                  <button className="mt-3 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500">Save permissions</button>
+                  <button className="mt-3 rounded-md bg-[#ea6a24] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#ea6a24]">Save permissions</button>
                 </form>
               </details>
             )
@@ -121,16 +121,16 @@ export default async function AdminsPage() {
       </div>
 
       {/* RBAC reference */}
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-5">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-300">Role permissions</h2>
+      <div className="rounded-lg border border-border bg-card p-5">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">Role permissions</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {ROLES.map((r) => (
-            <div key={r.key} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
-              <p className="text-sm font-medium text-zinc-200">{r.label}</p>
-              <p className="mb-2 text-xs text-zinc-500">{r.desc}</p>
+            <div key={r.key} className="rounded-lg border border-border bg-background/50 p-3">
+              <p className="text-sm font-medium text-foreground">{r.label}</p>
+              <p className="mb-2 text-xs text-muted-foreground">{r.desc}</p>
               <div className="flex flex-wrap gap-1">
                 {(PLATFORM_ROLE_PERMISSIONS[r.key] ?? []).map((p) => (
-                  <span key={p} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">{p.replace(/_/g, ' ')}</span>
+                  <span key={p} className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{p.replace(/_/g, ' ')}</span>
                 ))}
               </div>
             </div>

@@ -8,16 +8,16 @@ import { PageHeader, Panel, Stat, timeAgo } from '../ui'
 const PRIORITY_STYLE: Record<string, string> = {
   urgent: 'bg-red-500/15 text-red-400',
   high: 'bg-amber-500/15 text-amber-400',
-  normal: 'bg-zinc-700/50 text-zinc-300',
-  low: 'bg-zinc-800 text-zinc-500',
+  normal: 'bg-muted/50 text-foreground',
+  low: 'bg-muted text-muted-foreground',
 }
 const STATUS_STYLE: Record<string, string> = {
   open: 'text-emerald-400',
-  in_progress: 'text-indigo-400',
+  in_progress: 'text-[#ea6a24]',
   waiting_client: 'text-amber-400',
   escalated: 'text-red-400',
-  resolved: 'text-zinc-400',
-  closed: 'text-zinc-600',
+  resolved: 'text-muted-foreground',
+  closed: 'text-muted-foreground',
 }
 const FILTERS = ['all', 'open', 'in_progress', 'waiting_client', 'escalated', 'resolved', 'closed']
 
@@ -45,7 +45,7 @@ export default async function SupportListPage({ searchParams }: { searchParams: 
             key={f}
             href={f === 'all' ? '/platform-admin/support' : `/platform-admin/support?status=${f}`}
             className={`rounded-full border px-3 py-1 text-xs font-medium capitalize transition-colors ${
-              (active ?? 'all') === f ? 'border-indigo-500 bg-indigo-500/15 text-indigo-300' : 'border-zinc-800 text-zinc-400 hover:border-zinc-700'
+              (active ?? 'all') === f ? 'border-[#ea6a24] bg-[#ea6a24]/15 text-[#ea6a24]' : 'border-border text-muted-foreground hover:border-input'
             }`}
           >
             {f.replace('_', ' ')}
@@ -55,23 +55,23 @@ export default async function SupportListPage({ searchParams }: { searchParams: 
 
       <Panel>
         {tickets.length === 0 ? (
-          <div className="py-10 text-center text-sm text-zinc-500">
-            <LifeBuoy className="mx-auto mb-2 h-6 w-6 text-zinc-700" />
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            <LifeBuoy className="mx-auto mb-2 h-6 w-6 text-muted-foreground/50" />
             No tickets{active ? ` with status "${active.replace('_', ' ')}"` : ''}.
           </div>
         ) : (
-          <div className="divide-y divide-zinc-800">
+          <div className="divide-y divide-border">
             {tickets.map((t) => {
               const sla = slaStatus(t.priority, t.created_at, t.first_response_at, ['resolved', 'closed'].includes(t.status))
               return (
-              <Link key={t.id} href={`/platform-admin/support/${t.id}`} className="flex items-center justify-between gap-4 py-3 transition-colors hover:bg-zinc-800/40">
+              <Link key={t.id} href={`/platform-admin/support/${t.id}`} className="flex items-center justify-between gap-4 py-3 transition-colors hover:bg-muted/40">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-zinc-200">{t.subject}</p>
-                  <p className="text-xs text-zinc-500">{t.workspace_name} · <span className="capitalize">{t.category}</span> · {timeAgo(t.updated_at)}{!t.assigned_to && ' · unassigned'}</p>
+                  <p className="truncate text-sm font-medium text-foreground">{t.subject}</p>
+                  <p className="text-xs text-muted-foreground">{t.workspace_name} · <span className="capitalize">{t.category}</span> · {timeAgo(t.updated_at)}{!t.assigned_to && ' · unassigned'}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {sla.breached && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] font-medium text-red-400">SLA</span>}
-                  {!sla.responded && !sla.breached && t.status !== 'closed' && t.status !== 'resolved' && <span className="text-[11px] text-zinc-500">{sla.label}</span>}
+                  {!sla.responded && !sla.breached && t.status !== 'closed' && t.status !== 'resolved' && <span className="text-[11px] text-muted-foreground">{sla.label}</span>}
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${PRIORITY_STYLE[t.priority]}`}>{t.priority}</span>
                   <span className={`text-xs font-medium capitalize ${STATUS_STYLE[t.status]}`}>{t.status.replace('_', ' ')}</span>
                 </div>

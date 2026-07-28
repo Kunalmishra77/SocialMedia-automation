@@ -1,16 +1,18 @@
 import Link from 'next/link'
+import { Brain } from 'lucide-react'
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Brand panel */}
       <div className="brand-gradient relative hidden flex-col justify-between p-12 text-white lg:flex">
-        <Link href="/" className="text-xl font-bold tracking-tight">
-          ◐ Socialflow
+        <Link href="/" className="flex items-center gap-2 text-xl font-extrabold tracking-tight">
+          <Brain className="h-6 w-6" strokeWidth={2.2} />
+          AGENTiX <span className="text-base font-semibold text-white/70">SocialFlow</span>
         </Link>
         <div className="space-y-4">
           <h2 className="text-3xl font-bold leading-tight">
-            Run all your social media from one inbox.
+            Run all your social media from one intelligent inbox.
           </h2>
           <p className="max-w-md text-white/85">
             Instagram, Facebook, Telegram and more — AI handles the volume, your team handles the
@@ -24,7 +26,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             ))}
           </div>
         </div>
-        <p className="text-sm text-white/70">© {new Date().getFullYear()} Socialflow</p>
+        <p className="text-sm text-white/70">© {new Date().getFullYear()} AI-Agentix · AI Applied, Growth Multiplied</p>
       </div>
 
       {/* Form panel */}

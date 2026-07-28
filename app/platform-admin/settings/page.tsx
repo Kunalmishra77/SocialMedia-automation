@@ -5,9 +5,9 @@ import { getPlatformSettings } from '@/lib/platform-admin/settings'
 import { updatePlatformSettingAction } from '@/lib/actions/platform-settings'
 import { PageHeader, Panel } from '../ui'
 
-const field = 'h-10 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 placeholder:text-zinc-600'
-const label = 'mb-1 block text-xs text-zinc-400'
-const saveBtn = 'h-9 rounded-md bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500'
+const field = 'h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground'
+const label = 'mb-1 block text-xs text-muted-foreground'
+const saveBtn = 'h-9 rounded-md bg-[#ea6a24] px-4 text-sm font-medium text-white hover:bg-[#ea6a24]'
 
 export default async function PlatformSettingsPage() {
   const ctx = await requirePlatformAdmin()
@@ -48,7 +48,7 @@ export default async function PlatformSettingsPage() {
               <input name="fallbackModel" defaultValue={s.ai.fallbackModel} className={field} />
             </div>
           </div>
-          <p className="text-xs text-zinc-600">Used as the platform-wide default when a workspace has no model override.</p>
+          <p className="text-xs text-muted-foreground">Used as the platform-wide default when a workspace has no model override.</p>
           <button className={saveBtn}>Save AI defaults</button>
         </form>
       </Panel>
@@ -73,13 +73,13 @@ export default async function PlatformSettingsPage() {
       <Panel title="Maintenance mode">
         <form action={updatePlatformSettingAction} className="space-y-3">
           <input type="hidden" name="__key" value="maintenance" />
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <input type="checkbox" name="enabled" defaultChecked={s.maintenance.enabled} className="accent-amber-500" />
             <Wrench className="h-4 w-4 text-amber-400" /> Enable maintenance banner
           </label>
           <div>
             <label className={label}>Message</label>
-            <textarea name="message" rows={2} defaultValue={s.maintenance.message} className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100" />
+            <textarea name="message" rows={2} defaultValue={s.maintenance.message} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground" />
           </div>
           <button className={saveBtn}>Save maintenance</button>
         </form>

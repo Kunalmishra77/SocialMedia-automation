@@ -24,7 +24,7 @@ export default async function AnalyticsPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Messages by channel">
           {a.byChannel.length === 0 ? (
-            <p className="text-sm text-zinc-500">No conversations yet.</p>
+            <p className="text-sm text-muted-foreground">No conversations yet.</p>
           ) : (
             <div className="space-y-3">
               {a.byChannel.map((c) => (
@@ -32,15 +32,15 @@ export default async function AnalyticsPage() {
               ))}
             </div>
           )}
-          <div className="mt-4 flex gap-4 border-t border-zinc-800 pt-3 text-sm">
-            <span className="text-zinc-400">Inbound <span className="font-semibold text-zinc-100">{a.messages.inbound.toLocaleString('en-IN')}</span></span>
-            <span className="text-zinc-400">Outbound <span className="font-semibold text-zinc-100">{a.messages.outbound.toLocaleString('en-IN')}</span></span>
+          <div className="mt-4 flex gap-4 border-t border-border pt-3 text-sm">
+            <span className="text-muted-foreground">Inbound <span className="font-semibold text-foreground">{a.messages.inbound.toLocaleString('en-IN')}</span></span>
+            <span className="text-muted-foreground">Outbound <span className="font-semibold text-foreground">{a.messages.outbound.toLocaleString('en-IN')}</span></span>
           </div>
         </Panel>
 
-        <Panel title="AI usage · last 30 days" right={<span className="text-xs text-zinc-500">{a.ai.events30d.toLocaleString('en-IN')} events</span>}>
+        <Panel title="AI usage · last 30 days" right={<span className="text-xs text-muted-foreground">{a.ai.events30d.toLocaleString('en-IN')} events</span>}>
           {a.ai.byMetric.length === 0 ? (
-            <p className="text-sm text-zinc-500">No AI usage logged yet.</p>
+            <p className="text-sm text-muted-foreground">No AI usage logged yet.</p>
           ) : (
             <div className="space-y-3">
               {a.ai.byMetric.map((m) => (
@@ -60,7 +60,7 @@ export default async function AnalyticsPage() {
 
       <Panel title="Most active clients · 30 days">
         {a.mostActiveClients.length === 0 ? (
-          <p className="text-sm text-zinc-500">No activity yet.</p>
+          <p className="text-sm text-muted-foreground">No activity yet.</p>
         ) : (
           <div className="space-y-3">
             {a.mostActiveClients.map((c, i) => (
@@ -69,7 +69,7 @@ export default async function AnalyticsPage() {
           </div>
         )}
       </Panel>
-      <p className="text-xs text-zinc-600"><Sparkles className="mr-1 inline h-3 w-3" />Sampled from the latest 5,000 messages for per-client ranking.</p>
+      <p className="text-xs text-muted-foreground"><Sparkles className="mr-1 inline h-3 w-3" />Sampled from the latest 5,000 messages for per-client ranking.</p>
     </div>
   )
 }

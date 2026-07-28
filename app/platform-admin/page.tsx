@@ -18,7 +18,7 @@ const QUICK_ACTIONS = [
 const ALERT_STYLES: Record<string, string> = {
   critical: 'border-red-900/50 bg-red-950/30 text-red-300',
   warning: 'border-amber-900/50 bg-amber-950/30 text-amber-300',
-  info: 'border-zinc-800 bg-zinc-900/60 text-zinc-400',
+  info: 'border-border bg-card/60 text-muted-foreground',
 }
 
 export default async function PlatformOverview() {
@@ -35,8 +35,8 @@ export default async function PlatformOverview() {
         {QUICK_ACTIONS.map((a) => {
           const Icon = a.icon
           return (
-            <Link key={a.href} href={a.href} className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-200 transition-colors hover:border-zinc-700 hover:bg-zinc-800">
-              <Icon className="h-4 w-4 text-indigo-400" />
+            <Link key={a.href} href={a.href} className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-input hover:bg-muted">
+              <Icon className="h-4 w-4 text-[#ea6a24]" />
               {a.label}
             </Link>
           )
@@ -72,10 +72,10 @@ export default async function PlatformOverview() {
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Growth sparkline */}
         <Panel title="New clients · 14 days" className="lg:col-span-2">
-          <div className="text-indigo-400">
+          <div className="text-[#ea6a24]">
             <Sparkline points={m.growth.map((g) => g.count)} />
           </div>
-          <div className="mt-2 flex justify-between text-xs text-zinc-500">
+          <div className="mt-2 flex justify-between text-xs text-muted-foreground">
             <span>{m.growth[0]?.day.slice(5)}</span>
             <span>{m.clients.new7d} in last 7 days</span>
             <span>{m.growth[m.growth.length - 1]?.day.slice(5)}</span>
@@ -105,18 +105,18 @@ export default async function PlatformOverview() {
         </Panel>
 
         {/* Pending approvals */}
-        <Panel title="Pending approvals" right={<Link href="/platform-admin/approvals" className="text-xs text-indigo-400 hover:underline">View all</Link>}>
+        <Panel title="Pending approvals" right={<Link href="/platform-admin/approvals" className="text-xs text-[#ea6a24] hover:underline">View all</Link>}>
           {m.pendingApprovals.length === 0 ? (
-            <p className="text-sm text-zinc-500">No clients awaiting approval.</p>
+            <p className="text-sm text-muted-foreground">No clients awaiting approval.</p>
           ) : (
             <div className="space-y-2">
               {m.pendingApprovals.slice(0, 5).map((p) => (
-                <div key={p.id} className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2 text-sm">
+                <div key={p.id} className="flex items-center justify-between rounded-lg border border-border bg-background/50 px-3 py-2 text-sm">
                   <div>
-                    <p className="font-medium text-zinc-200">{p.name}</p>
-                    <p className="text-xs text-zinc-500">{p.plan ?? '—'} · {p.amount ? inr(Number(p.amount)) : 'unpaid'} · {timeAgo(p.submitted_at)}</p>
+                    <p className="font-medium text-foreground">{p.name}</p>
+                    <p className="text-xs text-muted-foreground">{p.plan ?? '—'} · {p.amount ? inr(Number(p.amount)) : 'unpaid'} · {timeAgo(p.submitted_at)}</p>
                   </div>
-                  <Link href="/platform-admin/approvals" className="text-indigo-400 hover:text-indigo-300"><ArrowRight className="h-4 w-4" /></Link>
+                  <Link href="/platform-admin/approvals" className="text-[#ea6a24] hover:text-[#ea6a24]"><ArrowRight className="h-4 w-4" /></Link>
                 </div>
               ))}
             </div>
@@ -125,15 +125,15 @@ export default async function PlatformOverview() {
       </div>
 
       {/* Recent activity */}
-      <Panel title="Recent operator activity" right={<Link href="/platform-admin/security" className="text-xs text-indigo-400 hover:underline">Audit log</Link>}>
+      <Panel title="Recent operator activity" right={<Link href="/platform-admin/security" className="text-xs text-[#ea6a24] hover:underline">Audit log</Link>}>
         {m.recentActivity.length === 0 ? (
-          <p className="text-sm text-zinc-500">No recent actions.</p>
+          <p className="text-sm text-muted-foreground">No recent actions.</p>
         ) : (
-          <div className="divide-y divide-zinc-800">
+          <div className="divide-y divide-border">
             {m.recentActivity.map((a, i) => (
               <div key={i} className="flex items-center justify-between py-2 text-sm">
-                <span className="text-zinc-300"><span className="font-mono text-xs text-indigo-400">{a.action}</span> {a.label ?? ''}</span>
-                <span className="text-xs text-zinc-500">{a.email.split('@')[0]} · {timeAgo(a.at)}</span>
+                <span className="text-foreground"><span className="font-mono text-xs text-[#ea6a24]">{a.action}</span> {a.label ?? ''}</span>
+                <span className="text-xs text-muted-foreground">{a.email.split('@')[0]} · {timeAgo(a.at)}</span>
               </div>
             ))}
           </div>
@@ -146,8 +146,8 @@ export default async function PlatformOverview() {
 function Row({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string | number }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="flex items-center gap-2 text-zinc-400"><Icon className="h-4 w-4 text-zinc-600" />{label}</span>
-      <span className="font-semibold text-zinc-100">{value}</span>
+      <span className="flex items-center gap-2 text-muted-foreground"><Icon className="h-4 w-4 text-muted-foreground" />{label}</span>
+      <span className="font-semibold text-foreground">{value}</span>
     </div>
   )
 }
