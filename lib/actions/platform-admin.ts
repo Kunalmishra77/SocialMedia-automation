@@ -16,6 +16,60 @@ export async function refreshMetaHealthAction(): Promise<void> {
   revalidatePath('/platform-admin/meta')
 }
 
+export interface ClientAccessState { error?: string; password?: string; link?: string; emailed?: boolean }
+
+/** Operator sets/resets a workspace owner's password directly (shown once, never stored). */
+export async function setClientPasswordAction(_prev: ClientAccessState, formData: FormData): Promise<ClientAccessState> {
+  const ctx = await requirePlatformAdmin()
+  if (!can(ctx, 'manage_workspaces')) return { error: 'Forbidden' }
+
+  const workspaceId = String(formData.get('workspaceId') ?? '')
+  const password = String(formData.get('password') ?? '')
+  if (password.length < 8) return { error: 'Password must be at least 8 characters.' }
+
+  const admin = createAdminClient()
+  const { data: ws } = await admin.from('workspaces').select('owner_email').eq('id', workspaceId).maybeSingle()
+  if (!ws?.owner_email) return { error: 'Client has no owner email.' }
+  const { data: profile } = await admin.from('profiles').select('id').eq('email', ws.owner_email).maybeSingle()
+  if (!profile) return { error: 'Owner account not found — approve the client first.' }
+
+  const { error } = await admin.auth.admin.updateUserById(profile.id, { password })
+  if (error) return { error: error.message }
+
+  await writeAudit(ctx, 'client.password_set', { type: 'workspace', id: workspaceId, label: ws.owner_email })
+  return { password, emailed: false }
+}
+
+/** Regenerate a fresh set-password (login) link for the owner and re-email it. */
+export async function generateLoginLinkAction(_prev: ClientAccessState, formData: FormData): Promise<ClientAccessState> {
+  const ctx = await requirePlatformAdmin()
+  if (!can(ctx, 'manage_workspaces')) return { error: 'Forbidden' }
+
+  const workspaceId = String(formData.get('workspaceId') ?? '')
+  const admin = createAdminClient()
+  const { data: ws } = await admin.from('workspaces').select('name, owner_email').eq('id', workspaceId).maybeSingle()
+  if (!ws?.owner_email) return { error: 'Client has no owner email.' }
+
+  const prov = await provisionOwnerWithSetPasswordLink(admin, ws.owner_email)
+  if (!prov?.setPasswordUrl) return { error: 'Could not generate a link — check Supabase redirect URLs.' }
+
+  let emailed = false
+  try {
+    emailed = await sendMail({
+      to: ws.owner_email,
+      subject: `Set your password — ${ws.name} on Socialflow`,
+      html: setPasswordEmailHtml({ workspaceName: ws.name, email: ws.owner_email, setPasswordUrl: prov.setPasswordUrl }),
+    })
+  } catch { emailed = false }
+
+  await admin.from('workspaces').update({
+    onboarding_data: { activation: { email: ws.owner_email, setPasswordUrl: prov.setPasswordUrl, sentAt: new Date().toISOString() } },
+  }).eq('id', workspaceId)
+
+  await writeAudit(ctx, 'client.login_link', { type: 'workspace', id: workspaceId, label: ws.owner_email, metadata: { emailed } })
+  return { link: prov.setPasswordUrl, emailed }
+}
+
 const VALID_PLANS = ['free', 'starter', 'pro', 'enterprise']
 
 function slugify(name: string): string {

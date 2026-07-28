@@ -9,6 +9,7 @@ import {
   changePlanAction,
 } from '@/lib/actions/platform-admin'
 import { startImpersonationAction } from '@/lib/actions/impersonation'
+import { ClientAccess } from './client-access'
 import { inr, timeAgo } from '../../ui'
 
 const PLANS = ['free', 'starter', 'pro', 'enterprise']
@@ -132,6 +133,11 @@ export default async function WorkspaceDetailPage({
             ))}
           </div>
         </div>
+      )}
+
+      {/* Client access — set password / send login link (works even if email fails) */}
+      {manageWs && ws.status === 'active' && ws.owner_email && (
+        <ClientAccess workspaceId={ws.id} ownerEmail={ws.owner_email} />
       )}
 
       {/* Actions */}

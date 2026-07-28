@@ -6,6 +6,7 @@ import { loginAction, type ActionState } from '@/lib/actions/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PasswordInput } from '@/components/ui/password-input'
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(loginAction, {})
@@ -27,7 +28,7 @@ export default function LoginPage() {
             <Label htmlFor="password">Password</Label>
             <Link href="/forgot-password" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link>
           </div>
-          <Input id="password" name="password" type="password" autoComplete="current-password" required placeholder="••••••••" />
+          <PasswordInput id="password" name="password" autoComplete="current-password" required placeholder="••••••••" />
         </div>
 
         {state.error && (
@@ -39,11 +40,9 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground">
-        Don&apos;t have an account?{' '}
-        <Link href="/signup" className="font-medium text-primary hover:underline">
-          Sign up
-        </Link>
+      <p className="text-center text-xs text-muted-foreground">
+        Accounts are provisioned by your Socialflow administrator. Trouble signing in? Use{' '}
+        <Link href="/forgot-password" className="font-medium text-primary hover:underline">reset password</Link>.
       </p>
     </div>
   )
