@@ -60,7 +60,7 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
   const ctx = await requirePlatformAdmin()
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+    <div className="flex h-screen overflow-hidden bg-[#fafaf4] text-foreground">
       <CommandPalette />
       <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-card">
         <div className="flex h-16 flex-col justify-center gap-0.5 border-b border-border px-4">

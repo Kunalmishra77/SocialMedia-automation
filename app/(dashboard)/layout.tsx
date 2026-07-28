@@ -54,7 +54,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Topbar email={user.email ?? ''} unread={await unreadCount(user.id)} />
-          <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
+          <main className="flex-1 overflow-y-auto bg-[#eaf4fe] p-6">{children}</main>
         </div>
       </div>
     </div>
