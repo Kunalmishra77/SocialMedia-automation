@@ -4,15 +4,29 @@ import { Plug, ArrowRight } from 'lucide-react'
 import { requirePlatformAdmin, can } from '@/lib/platform-admin/auth'
 import { getIntegrations } from '@/lib/platform-admin/ops'
 import { PageHeader, Panel, StatusDot, timeAgo } from '../ui'
+import { MetaSetup } from './meta-setup'
 
 export default async function IntegrationsPage() {
   const ctx = await requirePlatformAdmin()
   if (!can(ctx, 'view_system_health')) notFound()
   const { rows, metaLastChecked } = await getIntegrations()
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://your-domain.com'
+  const verifyToken = process.env.META_VERIFY_TOKEN ?? 'socialflow_verify'
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader title="Integrations" subtitle="Every external service the platform depends on." />
+
+      {/* Meta / Instagram setup reference — paste these into the Meta app */}
+      <Panel title="Meta / Instagram — paste these into your Meta App">
+        <MetaSetup base={base} verifyToken={verifyToken} />
+        <p className="mt-3 text-xs text-muted-foreground">
+          developers.facebook.com → your app → Instagram (API setup with Instagram login). Add #1 under
+          the login redirect URIs, and #2 + #3 under Webhooks. Subscribe to <span className="font-mono">messages</span>,
+          <span className="font-mono"> comments</span>, <span className="font-mono">mentions</span>. To let a
+          client connect while the app is in development, add their Instagram account as a Tester (or switch the app to Live).
+        </p>
+      </Panel>
 
       <Panel>
         <div className="divide-y divide-border">

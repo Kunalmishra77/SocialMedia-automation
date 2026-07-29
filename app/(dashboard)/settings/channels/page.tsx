@@ -7,17 +7,26 @@ import { ConnectTelegram } from './connect-telegram'
 
 const CATALOG = [
   { channel: 'instagram', name: 'Instagram', status: 'oauth', note: 'DM, comments, story replies' },
-  { channel: 'facebook', name: 'Facebook / Messenger', status: 'oauth', note: 'DM, comments' },
   { channel: 'telegram', name: 'Telegram', status: 'ready', note: 'Full DM automation' },
+  { channel: 'facebook', name: 'Facebook / Messenger', status: 'soon', note: 'DM, comments' },
   { channel: 'linkedin', name: 'LinkedIn', status: 'soon', note: 'Page posting + comments' },
   { channel: 'youtube', name: 'YouTube', status: 'soon', note: 'Comment moderation' },
 ]
 
-export default async function ChannelsPage() {
+const CONNECT_MSG: Record<string, { ok: boolean; text: string }> = {
+  instagram: { ok: true, text: '✅ Instagram connected successfully.' },
+  ig_not_configured: { ok: false, text: 'Instagram isn’t configured on the server yet — contact support.' },
+  oauth_failed: { ok: false, text: 'Connection was cancelled or failed. Please try again.' },
+  token_exchange: { ok: false, text: 'Instagram declined the connection. Make sure it’s a Business/Creator account linked to a Facebook Page, and that access has been granted for your account.' },
+}
+
+export default async function ChannelsPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
   const user = await requireUser()
   const { active } = await getActiveMembership(user.id)
   if (!active) redirect('/workspace/new')
   if (!roleCan(active.role, 'manage_workspace')) redirect('/')
+  const sp = await searchParams
+  const notice = sp.success ? CONNECT_MSG[sp.success] : sp.error ? CONNECT_MSG[sp.error] : null
 
   const admin = createAdminClient()
   const { data: connected } = await admin
@@ -33,6 +42,12 @@ export default async function ChannelsPage() {
         <h1 className="text-2xl font-bold tracking-tight">Channels</h1>
         <p className="text-sm text-muted-foreground">Connect the platforms you want to automate.</p>
       </div>
+
+      {notice && (
+        <div className={`rounded-lg border px-4 py-3 text-sm ${notice.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+          {notice.text}
+        </div>
+      )}
 
       <div className="space-y-3">
         {CATALOG.map((item) => {
