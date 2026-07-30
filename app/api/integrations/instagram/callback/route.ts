@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { exchangeIgCode, igLongLivedToken, fetchInstagramProfile, subscribeInstagramWebhooks, IG_CAPS } from '@/lib/channels/instagram'
+import { getInstagramApp } from '@/lib/instagram-config'
 import { encryptToken } from '@/lib/crypto'
 
 /** Instagram Business Login callback: exchange code, store the long-lived token. */
@@ -14,16 +15,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/settings/channels?error=oauth_failed', req.url))
   }
 
-  const short = await exchangeIgCode(code, `${base}/api/integrations/instagram/callback`)
+  const admin = createAdminClient()
+  const app = await getInstagramApp(admin, workspaceId)
+  if (!app) return NextResponse.redirect(new URL('/settings/channels?error=ig_not_configured', req.url))
+
+  const short = await exchangeIgCode(code, `${base}/api/integrations/instagram/callback`, app.appId, app.appSecret)
   if (!short) return NextResponse.redirect(new URL('/settings/channels?error=token_exchange', req.url))
 
-  const ll = await igLongLivedToken(short.token)
+  const ll = await igLongLivedToken(short.token, app.appSecret)
   const token = ll?.token ?? short.token
   const expiresAt = ll ? new Date(Date.now() + ll.expiresIn * 1000).toISOString() : null
 
   const profile = await fetchInstagramProfile(short.userId, token)
 
-  const admin = createAdminClient()
   const encToken = encryptToken(token)
   await admin.from('channel_accounts').upsert(
     {

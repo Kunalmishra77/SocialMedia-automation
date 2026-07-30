@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership, roleCan } from '@/lib/authz'
 import { getTelegramMe, setTelegramWebhook } from '@/lib/channels/telegram'
 import { fetchIgMe, subscribeInstagramWebhooks, IG_CAPS } from '@/lib/channels/instagram'
+import { saveInstagramApp } from '@/lib/instagram-config'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 
 async function requireManageWorkspace(): Promise<string> {
@@ -61,6 +62,19 @@ export async function connectTelegramAction(formData: FormData): Promise<{ error
 
   revalidatePath('/settings/channels')
   return { ok: true }
+}
+
+/** Save this workspace's own Instagram app credentials (App ID + App Secret). */
+export async function saveInstagramAppAction(formData: FormData): Promise<{ ok?: boolean; error?: string; verifyToken?: string }> {
+  const workspaceId = await requireManageWorkspace()
+  const appId = String(formData.get('app_id') ?? '').trim()
+  const appSecret = String(formData.get('app_secret') ?? '').trim()
+  if (!appId || !appSecret) return { error: 'Enter both the Instagram App ID and App Secret.' }
+  if (!/^\d{6,}$/.test(appId)) return { error: 'App ID should be numeric (from your Meta app).' }
+  const admin = createAdminClient()
+  const { verifyToken } = await saveInstagramApp(admin, workspaceId, appId, appSecret)
+  revalidatePath('/settings/channels')
+  return { ok: true, verifyToken }
 }
 
 /**

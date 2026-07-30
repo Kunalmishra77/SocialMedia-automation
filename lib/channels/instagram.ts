@@ -210,9 +210,9 @@ export async function publishImage(token: string, igUserId: string, imageUrl: st
 
 // ---------- OAuth (Instagram Business Login) ----------
 
-export function instagramAuthUrl(redirectUri: string, state: string): string {
+export function instagramAuthUrl(redirectUri: string, state: string, appId: string): string {
   const p = new URLSearchParams({
-    client_id: process.env.INSTAGRAM_APP_ID ?? '',
+    client_id: appId,
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: IG_SCOPES,
@@ -221,14 +221,14 @@ export function instagramAuthUrl(redirectUri: string, state: string): string {
   return `https://www.instagram.com/oauth/authorize?${p.toString()}`
 }
 
-export async function exchangeIgCode(code: string, redirectUri: string): Promise<{ token: string; userId: string } | null> {
+export async function exchangeIgCode(code: string, redirectUri: string, appId: string, appSecret: string): Promise<{ token: string; userId: string } | null> {
   try {
     const res = await fetch('https://api.instagram.com/oauth/access_token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: process.env.INSTAGRAM_APP_ID ?? '',
-        client_secret: process.env.INSTAGRAM_APP_SECRET ?? '',
+        client_id: appId,
+        client_secret: appSecret,
         grant_type: 'authorization_code',
         redirect_uri: redirectUri,
         code,
@@ -278,11 +278,11 @@ export async function subscribeInstagramWebhooks(token: string): Promise<{ ok: b
   }
 }
 
-export async function igLongLivedToken(shortToken: string): Promise<{ token: string; expiresIn: number } | null> {
+export async function igLongLivedToken(shortToken: string, appSecret: string): Promise<{ token: string; expiresIn: number } | null> {
   try {
     const url = new URL(`${IG.replace('/v24.0', '')}/access_token`)
     url.searchParams.set('grant_type', 'ig_exchange_token')
-    url.searchParams.set('client_secret', process.env.INSTAGRAM_APP_SECRET ?? '')
+    url.searchParams.set('client_secret', appSecret)
     url.searchParams.set('access_token', shortToken)
     const res = await fetch(url.toString())
     const d = await res.json()

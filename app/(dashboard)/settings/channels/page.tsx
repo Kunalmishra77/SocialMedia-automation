@@ -3,8 +3,9 @@ import { requireUser, getActiveMembership, roleCan } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { disconnectChannelAction } from '@/lib/actions/channels'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { getInstagramSetup } from '@/lib/instagram-config'
 import { ConnectTelegram } from './connect-telegram'
-import { ConnectInstagram, ResubscribeInstagram } from './connect-instagram'
+import { InstagramChannel } from './connect-instagram'
 
 const CATALOG = [
   { channel: 'instagram', name: 'Instagram', status: 'oauth', note: 'DM, comments, story replies' },
@@ -36,6 +37,7 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Pro
     .eq('workspace_id', active.workspaceId)
 
   const connectedByChannel = new Map((connected ?? []).map((c) => [c.channel, c]))
+  const igSetup = await getInstagramSetup(admin, active.workspaceId)
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -75,25 +77,22 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Pro
                 )}
               </CardHeader>
               <CardContent>
-                {conn ? (
-                  <div className="flex items-center justify-between gap-3">
+                {item.channel === 'instagram' ? (
+                  <InstagramChannel conn={conn ?? null} setup={igSetup} />
+                ) : conn ? (
+                  <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">
                       {conn.display_name}{conn.handle ? ` · @${conn.handle}` : ''}
                     </span>
-                    <div className="flex items-center gap-2">
-                      {conn.channel === 'instagram' && <ResubscribeInstagram id={conn.id} />}
-                      <form action={disconnectChannelAction}>
-                        <input type="hidden" name="id" value={conn.id} />
-                        <button className="rounded-md px-2 py-1 text-xs text-destructive hover:bg-destructive/10">
-                          Disconnect
-                        </button>
-                      </form>
-                    </div>
+                    <form action={disconnectChannelAction}>
+                      <input type="hidden" name="id" value={conn.id} />
+                      <button className="rounded-md px-2 py-1 text-xs text-destructive hover:bg-destructive/10">
+                        Disconnect
+                      </button>
+                    </form>
                   </div>
                 ) : item.channel === 'telegram' ? (
                   <ConnectTelegram />
-                ) : item.channel === 'instagram' ? (
-                  <ConnectInstagram oauthEnabled={!!process.env.INSTAGRAM_APP_ID} />
                 ) : item.status === 'oauth' ? (
                   process.env.META_APP_ID ? (
                     <a href="#" className="inline-block rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90">
