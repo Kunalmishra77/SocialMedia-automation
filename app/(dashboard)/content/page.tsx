@@ -27,7 +27,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
   const admin = createAdminClient()
   const { data: posts } = await admin
     .from('content_posts')
-    .select('id, type, caption, status, scheduled_at, hashtags, created_at')
+    .select('id, type, caption, status, scheduled_at, hashtags, media_urls, rejection_note, created_at')
     .eq('workspace_id', active.workspaceId)
     .order('created_at', { ascending: false })
 
@@ -56,13 +56,23 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
       {!isCalendar && posts && posts.length > 0 && (
       <div className="grid gap-3 sm:grid-cols-2">
         {posts.map((p) => (
-          <div key={p.id} className="rounded-lg border border-border bg-card p-4">
+          <div key={p.id} className="overflow-hidden rounded-lg border border-border bg-card">
+            {(p.media_urls as string[] | null)?.[0] && (
+              /\.(mp4|mov|webm)(\?|$)/i.test((p.media_urls as string[])[0])
+                ? <video src={(p.media_urls as string[])[0]} className="h-40 w-full bg-muted object-cover" muted />
+                // eslint-disable-next-line @next/next/no-img-element
+                : <img src={(p.media_urls as string[])[0]} alt="" className="h-40 w-full bg-muted object-cover" />
+            )}
+            <div className="p-4">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-xs uppercase text-muted-foreground">{p.type}</span>
               <span className={`rounded-full px-2 py-0.5 text-xs capitalize ${STATUS_COLOR[p.status] ?? ''}`}>
                 {p.status}
               </span>
             </div>
+            {p.status === 'failed' && p.rejection_note && (
+              <p className="mb-2 rounded-md bg-red-50 px-2 py-1 text-xs text-red-700">{p.rejection_note}</p>
+            )}
             <p className="line-clamp-3 whitespace-pre-wrap text-sm">{p.caption}</p>
             {p.hashtags?.length > 0 && (
               <p className="mt-2 line-clamp-1 text-xs text-primary">
@@ -77,6 +87,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
                 <input type="hidden" name="id" value={p.id} />
                 <button className="text-xs text-destructive hover:underline">Delete</button>
               </form>
+            </div>
             </div>
           </div>
         ))}

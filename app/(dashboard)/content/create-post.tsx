@@ -47,6 +47,14 @@ export function CreatePost() {
         <Input name="scheduled_at" type="datetime-local" />
       </div>
 
+      {/* Media */}
+      <div className="rounded-lg border border-border bg-muted/30 p-3">
+        <p className="mb-1.5 text-xs font-medium text-muted-foreground">Media (image or video for Instagram)</p>
+        <input name="media" type="file" accept="image/*,video/mp4,video/quicktime" className="block w-full text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground hover:file:brightness-110" />
+        <p className="mt-2 text-[11px] text-muted-foreground">Upload a photo (JPG/PNG) or video/reel (MP4, ≤100 MB). Or paste a public URL:</p>
+        <Input name="media_url" placeholder="https://…/photo.jpg  (optional, if no file)" className="mt-1.5 h-9 text-xs" />
+      </div>
+
       <div>
         <p className="mb-1.5 text-xs font-medium text-muted-foreground">Publish to</p>
         <div className="flex flex-wrap gap-2">

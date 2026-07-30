@@ -155,6 +155,38 @@ export async function likeComment(token: string, businessId: string, commentId: 
 }
 
 /** Publish an image post (Content Publishing API). */
+/** Publish a Reel/video. Video containers need processing, so we poll status_code. */
+export async function publishReel(token: string, igUserId: string, videoUrl: string, caption: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+  try {
+    const create = await fetch(`${IG}/${igUserId}/media?access_token=${token.trim()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ media_type: 'REELS', video_url: videoUrl, caption }),
+    })
+    const cd = await create.json()
+    if (!cd.id) return { ok: false, error: cd.error?.message ?? 'container failed' }
+
+    // Poll until the video container finishes processing (max ~90s).
+    for (let i = 0; i < 18; i++) {
+      await new Promise((r) => setTimeout(r, 5000))
+      const st = await fetch(`${IG}/${cd.id}?fields=status_code,status&access_token=${token.trim()}`)
+      const sd = await st.json()
+      if (sd.status_code === 'FINISHED') break
+      if (sd.status_code === 'ERROR') return { ok: false, error: sd.status ?? 'video processing error' }
+    }
+
+    const pub = await fetch(`${IG}/${igUserId}/media_publish?access_token=${token.trim()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ creation_id: cd.id }),
+    })
+    const pd = await pub.json()
+    return pd.id ? { ok: true, id: pd.id } : { ok: false, error: pd.error?.message ?? 'publish failed' }
+  } catch (e) {
+    return { ok: false, error: String(e) }
+  }
+}
+
 export async function publishImage(token: string, igUserId: string, imageUrl: string, caption: string): Promise<{ ok: boolean; id?: string; error?: string }> {
   try {
     const create = await fetch(`${IG}/${igUserId}/media?access_token=${token}`, {

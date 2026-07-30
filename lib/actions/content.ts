@@ -18,9 +18,10 @@ async function ctx() {
 export async function createPostAction(formData: FormData): Promise<{ error?: string }> {
   const { user, workspaceId } = await ctx()
   const caption = String(formData.get('caption') ?? '').trim()
-  const type = String(formData.get('type') ?? 'feed')
+  let type = String(formData.get('type') ?? 'feed')
   const hashtagsRaw = String(formData.get('hashtags') ?? '').trim()
   const scheduledAt = String(formData.get('scheduled_at') ?? '').trim()
+  const mediaUrlInput = String(formData.get('media_url') ?? '').trim()
   if (!caption) return { error: 'Caption is required' }
 
   const hashtags = hashtagsRaw
@@ -31,11 +32,32 @@ export async function createPostAction(formData: FormData): Promise<{ error?: st
   const target_platforms = targets.length > 0 ? targets : ['instagram']
 
   const admin = createAdminClient()
+
+  // Media: an uploaded file (preferred) or a pasted public URL.
+  const media_urls: string[] = []
+  const file = formData.get('media') as File | null
+  if (file && typeof file === 'object' && file.size > 0) {
+    if (file.size > 100 * 1024 * 1024) return { error: 'Media must be under 100 MB.' }
+    const ext = (file.name.split('.').pop() || 'bin').toLowerCase()
+    const path = `${workspaceId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const { error: upErr } = await admin.storage.from('content-media').upload(path, file, {
+      contentType: file.type || undefined, upsert: false,
+    })
+    if (upErr) return { error: `Upload failed: ${upErr.message}` }
+    const { data: pub } = admin.storage.from('content-media').getPublicUrl(path)
+    media_urls.push(pub.publicUrl)
+    if (file.type.startsWith('video/')) type = 'reel'
+  } else if (mediaUrlInput) {
+    media_urls.push(mediaUrlInput)
+    if (/\.(mp4|mov|webm)(\?|$)/i.test(mediaUrlInput)) type = 'reel'
+  }
+
   await admin.from('content_posts').insert({
     workspace_id: workspaceId,
     type,
     caption,
     hashtags,
+    media_urls,
     target_platforms,
     status: scheduledAt ? 'scheduled' : 'draft',
     scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
