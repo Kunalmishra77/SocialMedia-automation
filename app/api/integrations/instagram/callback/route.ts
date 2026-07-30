@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { exchangeIgCode, igLongLivedToken, fetchInstagramProfile, IG_CAPS } from '@/lib/channels/instagram'
+import { exchangeIgCode, igLongLivedToken, fetchInstagramProfile, subscribeInstagramWebhooks, IG_CAPS } from '@/lib/channels/instagram'
 import { encryptToken } from '@/lib/crypto'
 
 /** Instagram Business Login callback: exchange code, store the long-lived token. */
@@ -55,6 +55,9 @@ export async function GET(req: NextRequest) {
     },
     { onConflict: 'workspace_id,ig_user_id' },
   )
+
+  // Subscribe the account to webhooks so inbound DMs/comments are delivered.
+  await subscribeInstagramWebhooks(token)
 
   return NextResponse.redirect(new URL('/settings/channels?success=instagram', req.url))
 }

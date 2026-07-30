@@ -6,7 +6,8 @@ import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership, roleCan } from '@/lib/authz'
 import { getTelegramMe, setTelegramWebhook } from '@/lib/channels/telegram'
-import { encryptToken } from '@/lib/crypto'
+import { fetchIgMe, subscribeInstagramWebhooks, IG_CAPS } from '@/lib/channels/instagram'
+import { encryptToken, decryptToken } from '@/lib/crypto'
 
 async function requireManageWorkspace(): Promise<string> {
   const user = await getUser()
@@ -60,6 +61,62 @@ export async function connectTelegramAction(formData: FormData): Promise<{ error
 
   revalidatePath('/settings/channels')
   return { ok: true }
+}
+
+/**
+ * Connect Instagram by pasting a long-lived access token (no OAuth redirect),
+ * then auto-subscribe the account to webhooks so DMs actually arrive.
+ */
+export async function connectInstagramTokenAction(formData: FormData): Promise<{ error?: string; ok?: boolean; warning?: string }> {
+  const workspaceId = await requireManageWorkspace()
+  const token = String(formData.get('token') ?? '').trim()
+  if (!token) return { error: 'Paste your Instagram access token.' }
+
+  const me = await fetchIgMe(token)
+  if (!me) return { error: 'Invalid or expired token — Instagram didn’t accept it. Generate a fresh token and try again.' }
+
+  const admin = createAdminClient()
+  const encToken = encryptToken(token)
+  await admin.from('channel_accounts').upsert(
+    {
+      workspace_id: workspaceId, channel: 'instagram', external_id: me.userId,
+      handle: me.username, display_name: me.name, access_token: encToken,
+      capabilities: IG_CAPS, is_active: true,
+    },
+    { onConflict: 'workspace_id,channel,external_id' },
+  )
+  await admin.from('instagram_accounts').upsert(
+    {
+      workspace_id: workspaceId, ig_user_id: me.userId, page_id: me.userId,
+      username: me.username, name: me.name, access_token: encToken,
+      webhook_verified: true, is_active: true,
+    },
+    { onConflict: 'workspace_id,ig_user_id' },
+  )
+
+  const sub = await subscribeInstagramWebhooks(token)
+  revalidatePath('/settings/channels')
+  if (!sub.ok) {
+    return { ok: true, warning: `Connected, but webhook subscription failed: ${sub.error}. Make sure the Instagram webhook (callback URL + "messages" field) is configured in the Meta app.` }
+  }
+  return { ok: true }
+}
+
+/** Re-run the webhook subscription for an already-connected Instagram account. */
+export async function resubscribeInstagramAction(formData: FormData): Promise<{ ok?: boolean; error?: string }> {
+  const workspaceId = await requireManageWorkspace()
+  const id = String(formData.get('id') ?? '')
+  const admin = createAdminClient()
+  const { data: acct } = await admin
+    .from('channel_accounts')
+    .select('access_token')
+    .eq('id', id).eq('workspace_id', workspaceId).eq('channel', 'instagram')
+    .maybeSingle()
+  const token = decryptToken(acct?.access_token)
+  if (!token) return { error: 'No token on file — reconnect Instagram.' }
+  const sub = await subscribeInstagramWebhooks(token)
+  revalidatePath('/settings/channels')
+  return sub.ok ? { ok: true } : { error: `${sub.error}. Configure the Instagram webhook (callback URL + "messages" field) in the Meta app dashboard first.` }
 }
 
 export async function disconnectChannelAction(formData: FormData): Promise<void> {

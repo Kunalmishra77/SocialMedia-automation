@@ -242,6 +242,42 @@ export async function exchangeIgCode(code: string, redirectUri: string): Promise
   }
 }
 
+/** Fetch the connected IG account's own id/username from a token (for paste-token connect). */
+export async function fetchIgMe(token: string): Promise<{ userId: string; username: string | null; name: string | null } | null> {
+  try {
+    const url = new URL(`${IG}/me`)
+    url.searchParams.set('fields', 'user_id,username,name')
+    url.searchParams.set('access_token', token.trim())
+    const res = await fetch(url.toString())
+    const d = await res.json()
+    const id = d.user_id ?? d.id
+    if (!id) return null
+    return { userId: String(id), username: d.username ?? null, name: d.name ?? null }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Subscribe this IG account to the app's webhooks (messages, postbacks, comments)
+ * so inbound DMs/comments are delivered to /api/webhooks/instagram. Must be called
+ * after connecting; without it Instagram sends nothing. Requires the app-level
+ * webhook (callback URL + fields) to be configured in the Meta dashboard.
+ */
+export async function subscribeInstagramWebhooks(token: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const url = new URL(`${IG}/me/subscribed_apps`)
+    url.searchParams.set('subscribed_fields', 'messages,messaging_postbacks,comments')
+    url.searchParams.set('access_token', token.trim())
+    const res = await fetch(url.toString(), { method: 'POST' })
+    const d = await res.json()
+    if (d.success === true || res.ok) return { ok: true }
+    return { ok: false, error: d.error?.message ?? 'Subscription failed' }
+  } catch (e) {
+    return { ok: false, error: String(e) }
+  }
+}
+
 export async function igLongLivedToken(shortToken: string): Promise<{ token: string; expiresIn: number } | null> {
   try {
     const url = new URL(`${IG.replace('/v24.0', '')}/access_token`)
