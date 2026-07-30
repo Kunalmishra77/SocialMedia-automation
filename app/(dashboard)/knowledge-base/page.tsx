@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { KbEditor } from './kb-editor'
 import { AiSettings } from './ai-settings'
 import { DocIngest } from './doc-ingest'
+import { Sandbox } from './sandbox'
 
 export default async function KnowledgeBasePage() {
   const user = await requireUser()
@@ -53,6 +54,16 @@ export default async function KnowledgeBasePage() {
             autoLike={settings.auto_like_comments ?? true}
             followGateMessage={settings.follow_gate_message ?? ''}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Sandbox — test your AI</CardTitle>
+          <CardDescription>Type a message and see exactly how the AI would reply, using your persona + knowledge. Nothing is sent or saved.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Sandbox />
         </CardContent>
       </Card>
 

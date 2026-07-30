@@ -37,6 +37,19 @@ export async function aiGeneratePersona(desc: string): Promise<{ persona?: strin
   return out ? { persona: out.trim() } : { error: 'Generation failed' }
 }
 
+/** Sandbox: test the AI reply for a message using the workspace persona + KB.
+ *  Runs the exact production pipeline (empty history), persists nothing. */
+export async function sandboxReplyAction(message: string): Promise<{ reply?: string; kbContext?: string; error?: string }> {
+  const workspaceId = await requireManageKb()
+  const m = message.trim()
+  if (!m) return { error: 'Type a message to test.' }
+  const { getSandboxReply } = await import('@/lib/ai/reply')
+  const admin = createAdminClient()
+  const res = await getSandboxReply(admin, workspaceId, m)
+  if (!res.configured) return { error: 'Add an OpenAI/OpenRouter key to test the AI.' }
+  return { reply: res.reply ?? '(no reply generated)', kbContext: res.kbContext }
+}
+
 async function requireManageKb(): Promise<string> {
   const user = await getUser()
   if (!user) redirect('/login')

@@ -7,29 +7,23 @@ import { logUsage } from '@/lib/usage'
 
 type Admin = ReturnType<typeof createAdminClient>
 
-/**
- * Generate an AI reply for the latest inbound message in a conversation, using
- * the workspace persona + knowledge base. Returns null if AI isn't configured
- * or generation fails.
- */
-export async function getAIReply(
-  admin: Admin,
-  workspaceId: string,
-  conversationId: string,
-  lastInboundText: string,
-): Promise<string | null> {
-  if (!aiConfigured()) return null
-
-  // Persona
+/** Resolve the workspace persona (or a sensible default). */
+async function getPersona(admin: Admin, workspaceId: string): Promise<string> {
   const { data: ws } = await admin.from('workspaces').select('name, settings').eq('id', workspaceId).maybeSingle()
-  const persona = (ws?.settings as { agent_persona?: string } | null)?.agent_persona
+  return (ws?.settings as { agent_persona?: string } | null)?.agent_persona
     || `You are a helpful, friendly support agent for ${ws?.name ?? 'this business'}. Keep replies concise and warm.`
+}
 
-  // Knowledge base context — semantic if embeddings available, else top entries.
+/**
+ * Retrieve grounding context for a message: semantic KB match → uploaded document
+ * chunks → priority-ordered entries fallback. Shared by production + the sandbox so
+ * both ground on identical knowledge.
+ */
+export async function retrieveKbContext(admin: Admin, workspaceId: string, message: string, logEmbeddingUsage = false): Promise<string> {
   let kbContext = ''
-  const embedding = await generateEmbedding(lastInboundText)
+  const embedding = await generateEmbedding(message)
   if (embedding) {
-    await logUsage(admin, workspaceId, 'ai_embedding')
+    if (logEmbeddingUsage) await logUsage(admin, workspaceId, 'ai_embedding')
     const { data: matches } = await admin.rpc('match_knowledge_base', {
       query_embedding: embedding,
       workspace_id_param: workspaceId,
@@ -49,14 +43,39 @@ export async function getAIReply(
       .limit(5)
     kbContext = (entries ?? []).map((e) => `# ${e.title}\n${e.content}`).join('\n\n')
   }
-
-  // Also pull relevant chunks from uploaded documents (vector search).
   try {
-    const docs = await searchDocuments(admin, workspaceId, lastInboundText, 3)
+    const docs = await searchDocuments(admin, workspaceId, message, 3)
     if (docs.length) kbContext += (kbContext ? '\n\n' : '') + docs.join('\n\n')
   } catch {
     /* non-fatal */
   }
+  return kbContext
+}
+
+/** Build the system prompt (identical for production + sandbox). */
+function buildSystemPrompt(persona: string, kbContext: string): string {
+  return [
+    persona,
+    kbContext ? `\nUse this business knowledge to answer. If the answer isn't here, be honest and offer to connect a human.\n\n${kbContext}` : '',
+    '\nRules: Never invent policies or prices. Keep replies under 80 words. Match the customer\'s language.',
+  ].join('')
+}
+
+/**
+ * Generate an AI reply for the latest inbound message in a conversation, using
+ * the workspace persona + knowledge base. Returns null if AI isn't configured
+ * or generation fails.
+ */
+export async function getAIReply(
+  admin: Admin,
+  workspaceId: string,
+  conversationId: string,
+  lastInboundText: string,
+): Promise<string | null> {
+  if (!aiConfigured()) return null
+
+  const persona = await getPersona(admin, workspaceId)
+  const kbContext = await retrieveKbContext(admin, workspaceId, lastInboundText, true)
 
   // Recent history (last 10)
   const { data: history } = await admin
@@ -73,13 +92,27 @@ export async function getAIReply(
     .filter((m) => m.content)
     .map((m) => ({ role: m.direction === 'inbound' ? 'user' : 'assistant', content: m.content as string }))
 
-  const system = [
-    persona,
-    kbContext ? `\nUse this business knowledge to answer. If the answer isn't here, be honest and offer to connect a human.\n\n${kbContext}` : '',
-    '\nRules: Never invent policies or prices. Keep replies under 80 words. Match the customer\'s language.',
-  ].join('')
-
+  const system = buildSystemPrompt(persona, kbContext)
   const reply = await callAI([{ role: 'system', content: system }, ...historyMsgs], { maxTokens: 300, temperature: 0.6 })
   if (reply) await logUsage(admin, workspaceId, 'ai_reply')
   return reply
+}
+
+/**
+ * Sandbox test reply — runs the EXACT same persona + KB retrieval + prompting as
+ * production, with an empty conversation history. Nothing is persisted. Returns the
+ * reply plus the knowledge context it grounded on (so the user can see it).
+ */
+export async function getSandboxReply(
+  admin: Admin,
+  workspaceId: string,
+  message: string,
+): Promise<{ reply: string | null; kbContext: string; configured: boolean }> {
+  if (!aiConfigured()) return { reply: null, kbContext: '', configured: false }
+  const persona = await getPersona(admin, workspaceId)
+  const kbContext = await retrieveKbContext(admin, workspaceId, message, false)
+  const system = buildSystemPrompt(persona, kbContext)
+  const reply = await callAI([{ role: 'system', content: system }, { role: 'user', content: message }], { maxTokens: 300, temperature: 0.6 })
+  if (reply) await logUsage(admin, workspaceId, 'ai_reply')
+  return { reply, kbContext, configured: true }
 }
