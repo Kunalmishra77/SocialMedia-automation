@@ -131,6 +131,33 @@ export async function generateContent(opts: {
   }
 }
 
+/**
+ * Propose one fresh, specific post topic for a scheduled content plan, grounded
+ * on the brand + themes, avoiding recently used topics. Returns null if AI off.
+ */
+export async function suggestTopic(opts: {
+  brand: BrandProfile
+  themes?: string
+  recent?: string[]
+}): Promise<string | null> {
+  if (!aiConfigured()) return null
+  const out = await callAI(
+    [
+      { role: 'system', content: `You plan a social media calendar for this business.\n${buildBrandBlock(opts.brand)}` },
+      {
+        role: 'user',
+        content: [
+          `Suggest ONE specific, engaging social post topic${opts.themes ? ` about: ${opts.themes}` : ''}.`,
+          opts.recent?.length ? `Do NOT repeat these recent topics: ${opts.recent.slice(0, 10).join('; ')}.` : '',
+          'Reply with just the topic line — no quotes, no numbering, no explanation.',
+        ].filter(Boolean).join('\n'),
+      },
+    ],
+    { maxTokens: 40, temperature: 0.9 },
+  )
+  return out ? out.trim().replace(/^["'\-\d.\s]+/, '').slice(0, 160) : null
+}
+
 /** Regenerate copy for a single platform (used by "regenerate caption"). */
 export async function regeneratePlatform(opts: {
   brand: BrandProfile

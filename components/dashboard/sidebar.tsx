@@ -6,7 +6,7 @@ import {
   LayoutDashboard, MessagesSquare, Users, Target, Megaphone, CalendarDays,
   Workflow, BarChart3, BookOpen, Sparkles, ShoppingBag, Megaphone as AdsIcon,
   UserCog, Settings, ChevronsUpDown, LifeBuoy, CalendarCheck, Rocket, Plug,
-  Activity, Wand2, type LucideIcon,
+  Activity, Wand2, Repeat, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/brand-logo'
@@ -47,6 +47,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { label: 'Campaigns', href: '/campaigns', icon: Megaphone },
       { label: 'AI Studio', href: '/content/studio', icon: Wand2 },
+      { label: 'Auto-Pilot', href: '/content/plans', icon: Repeat },
       { label: 'Content', href: '/content', icon: CalendarDays },
       { label: 'Analytics', href: '/analytics', icon: BarChart3 },
     ],
