@@ -43,6 +43,18 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Brand profile</CardTitle>
+          <CardDescription>Teach the AI your voice, audience & products for on-brand content.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <a href="/settings/brand" className="text-sm font-medium text-primary hover:underline">
+            Edit brand profile →
+          </a>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Channels</CardTitle>
           <CardDescription>Connect Instagram, Telegram and more.</CardDescription>
         </CardHeader>

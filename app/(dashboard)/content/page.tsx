@@ -3,18 +3,24 @@ import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { deletePostAction } from '@/lib/actions/content'
 import Link from 'next/link'
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, Wand2 } from 'lucide-react'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { LocalTime } from '@/components/ui/local-time'
+import { Button } from '@/components/ui/button'
 import { CreatePost } from './create-post'
 import { ContentCalendar } from './content-calendar'
+import { ApprovalQueue, type PendingPost } from './approval-queue'
 
 const STATUS_COLOR: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
+  pending_approval: 'bg-amber-500/15 text-amber-600',
+  approved: 'bg-violet-500/15 text-violet-600',
   scheduled: 'bg-sky-500/15 text-sky-600',
+  publishing: 'bg-sky-500/15 text-sky-600',
   published: 'bg-emerald-500/15 text-emerald-600',
   failed: 'bg-red-500/15 text-red-600',
+  rejected: 'bg-red-500/10 text-red-500',
 }
 
 export default async function ContentPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
@@ -26,11 +32,23 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
   const isCalendar = view === 'calendar'
 
   const admin = createAdminClient()
-  const { data: posts } = await admin
+  const { data: allPosts } = await admin
     .from('content_posts')
-    .select('id, type, caption, status, scheduled_at, hashtags, media_urls, rejection_note, created_at')
+    .select('id, type, caption, brief, status, scheduled_at, hashtags, media_urls, target_platforms, rejection_note, created_at')
     .eq('workspace_id', active.workspaceId)
     .order('created_at', { ascending: false })
+
+  const pending: PendingPost[] = (allPosts ?? [])
+    .filter((p) => p.status === 'pending_approval')
+    .map((p) => ({
+      id: p.id,
+      brief: p.brief ?? null,
+      caption: p.caption ?? null,
+      media_url: (p.media_urls as string[] | null)?.[0] ?? null,
+      target_platforms: (p.target_platforms as string[] | null) ?? ['instagram'],
+    }))
+  // The awaiting-approval posts show in their own queue, not the main grid.
+  const posts = (allPosts ?? []).filter((p) => p.status !== 'pending_approval')
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -41,16 +59,21 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
           <Link href="/content" className={`rounded-md px-3 py-1 ${!isCalendar ? 'bg-card font-medium shadow-[var(--shadow-sm)]' : 'text-muted-foreground'}`}>List</Link>
           <Link href="/content?view=calendar" className={`rounded-md px-3 py-1 ${isCalendar ? 'bg-card font-medium shadow-[var(--shadow-sm)]' : 'text-muted-foreground'}`}>Calendar</Link>
         </div>
-        <CreatePost />
+        <div className="flex gap-2">
+          <Link href="/content/studio"><Button variant="outline"><Wand2 className="h-4 w-4" /> New with AI</Button></Link>
+          <CreatePost />
+        </div>
       </div>
+
+      {!isCalendar && <ApprovalQueue posts={pending} />}
 
       {isCalendar && <ContentCalendar posts={(posts ?? []) as never} />}
 
-      {!isCalendar && (!posts || posts.length === 0) && (
+      {!isCalendar && posts.length === 0 && pending.length === 0 && (
         <EmptyState
           icon={CalendarDays}
           title="No content yet"
-          description="Use “New post” above to draft a post or reel. Let AI write the caption, then schedule it to publish automatically."
+          description="Try “New with AI” — enter a topic and let AI write the post & design a visual. Or draft one manually with “New post”."
         />
       )}
 

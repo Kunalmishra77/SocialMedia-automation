@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   const { data: due } = await admin
     .from('content_posts')
-    .select('id, workspace_id, type, caption, hashtags, media_urls, target_platforms')
+    .select('id, workspace_id, type, caption, hashtags, media_urls, target_platforms, platform_variants')
     .eq('status', 'scheduled')
     .lte('scheduled_at', nowIso)
     .limit(25)
@@ -42,7 +42,11 @@ export async function GET(req: NextRequest) {
     const mediaUrl = (post.media_urls as string[] | null)?.[0]
     const acctToken = decryptToken(acct?.access_token)
     const targetsIg = !post.target_platforms || (post.target_platforms as string[]).includes('instagram')
-    const caption = [post.caption, ((post.hashtags as string[] | null) ?? []).map((h) => `#${h}`).join(' ')].filter(Boolean).join('\n\n')
+    // Prefer the Instagram-optimised AI variant; fall back to the base caption/hashtags.
+    const igVariant = (post.platform_variants as { instagram?: { caption?: string; hashtags?: string[] } } | null)?.instagram
+    const bodyText = igVariant?.caption || post.caption || ''
+    const tags = (igVariant?.hashtags ?? (post.hashtags as string[] | null) ?? []).map((h) => `#${h}`).join(' ')
+    const caption = [bodyText, tags].filter(Boolean).join('\n\n')
     const isVideo = post.type === 'reel' || /\.(mp4|mov|webm)(\?|$)/i.test(mediaUrl ?? '')
 
     if (!acctToken || !acct?.external_id) {

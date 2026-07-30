@@ -5,6 +5,16 @@ import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership } from '@/lib/authz'
 import { callAI, aiConfigured } from '@/lib/ai/client'
+import { getBrandProfile } from '@/lib/ai/brand'
+import { generateContent, type PlatformVariants } from '@/lib/ai/content-gen'
+import { generatePostImage } from '@/lib/ai/image-gen'
+import { retrieveKbContext } from '@/lib/ai/reply'
+
+/** IG feed post caption from the instagram variant (falls back to first variant). */
+function igCaptionFrom(variants: PlatformVariants): { caption: string; hashtags: string[] } {
+  const v = variants.instagram ?? Object.values(variants)[0]
+  return { caption: v?.caption ?? '', hashtags: v?.hashtags ?? [] }
+}
 
 async function ctx() {
   const user = await getUser()
@@ -90,6 +100,217 @@ export async function generateCaptionAction(
     caption: parts[0].trim(),
     hashtags: (parts[1] ?? '').trim().replace(/^#/, ''),
   }
+}
+
+// ── AI content automation: generate → review → approve → schedule ──────────
+
+export interface GeneratedPost {
+  id: string
+  title: string
+  brief: string
+  variants: PlatformVariants
+  media_url: string | null
+  image_source: string | null
+  target_platforms: string[]
+}
+
+/**
+ * Generate a full AI post from a topic/brief: per-platform copy + a visual.
+ * Persists it as `pending_approval` and returns it for the preview UI.
+ */
+export async function generateAiPostAction(
+  brief: string,
+  platforms: string[],
+): Promise<{ post?: GeneratedPost; error?: string }> {
+  const { user, workspaceId } = await ctx()
+  if (!aiConfigured()) return { error: 'Add an OpenAI/OpenRouter key to enable AI generation.' }
+  const b = brief.trim()
+  if (!b) return { error: 'Enter a topic or content idea.' }
+  const targets = platforms.filter(Boolean)
+  const target_platforms = targets.length ? targets : ['instagram']
+
+  const admin = createAdminClient()
+  const brand = await getBrandProfile(admin, workspaceId)
+  const kbContext = await retrieveKbContext(admin, workspaceId, b, false)
+
+  const gen = await generateContent({ brand, brief: b, platforms: target_platforms, kbContext })
+  if (!gen) return { error: 'AI could not generate content — try rephrasing the topic.' }
+
+  const image = await generatePostImage(admin, workspaceId, { prompt: gen.image_prompt, headline: gen.title, brand })
+  const ig = igCaptionFrom(gen.variants)
+
+  const { data: row, error } = await admin
+    .from('content_posts')
+    .insert({
+      workspace_id: workspaceId,
+      type: 'feed',
+      brief: b,
+      caption: ig.caption,
+      hashtags: ig.hashtags,
+      media_urls: image ? [image.url] : [],
+      target_platforms,
+      platform_variants: gen.variants,
+      image_prompt: gen.image_prompt,
+      image_source: image?.source ?? null,
+      status: 'pending_approval',
+      requires_approval: true,
+      ai_generated: true,
+      ai_prompt: b,
+      ai_model: process.env.AI_MODEL ?? null,
+      created_by: user.id,
+    })
+    .select('id')
+    .single()
+  if (error || !row) return { error: 'Could not save the generated post.' }
+
+  revalidatePath('/content')
+  return {
+    post: {
+      id: row.id,
+      title: gen.title,
+      brief: b,
+      variants: gen.variants,
+      media_url: image?.url ?? null,
+      image_source: image?.source ?? null,
+      target_platforms,
+    },
+  }
+}
+
+/** Regenerate a post's copy, image, or both. Returns the refreshed fields. */
+export async function regeneratePostAction(
+  postId: string,
+  what: 'caption' | 'image' | 'all',
+): Promise<{ variants?: PlatformVariants; media_url?: string | null; error?: string }> {
+  const { workspaceId } = await ctx()
+  if (!aiConfigured()) return { error: 'Add an OpenAI/OpenRouter key to enable AI generation.' }
+  const admin = createAdminClient()
+  const { data: post } = await admin
+    .from('content_posts')
+    .select('id, brief, ai_prompt, target_platforms, platform_variants, image_prompt')
+    .eq('id', postId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  if (!post) return { error: 'Post not found.' }
+
+  const brand = await getBrandProfile(admin, workspaceId)
+  const brief = post.brief || post.ai_prompt || ''
+  const platforms = (post.target_platforms as string[] | null) ?? ['instagram']
+  const update: Record<string, unknown> = {}
+  let variants = (post.platform_variants ?? {}) as PlatformVariants
+
+  if (what === 'caption' || what === 'all') {
+    const kbContext = await retrieveKbContext(admin, workspaceId, brief, false)
+    const gen = await generateContent({ brand, brief, platforms, kbContext })
+    if (!gen) return { error: 'AI could not regenerate — try again.' }
+    variants = gen.variants
+    const ig = igCaptionFrom(variants)
+    update.platform_variants = variants
+    update.caption = ig.caption
+    update.hashtags = ig.hashtags
+    update.image_prompt = gen.image_prompt || post.image_prompt
+  }
+
+  let mediaUrl: string | null | undefined
+  if (what === 'image' || what === 'all') {
+    const prompt = (update.image_prompt as string) || post.image_prompt || brief
+    const image = await generatePostImage(admin, workspaceId, { prompt, headline: brief.slice(0, 120), brand })
+    if (image) {
+      mediaUrl = image.url
+      update.media_urls = [image.url]
+      update.image_source = image.source
+    }
+  }
+
+  if (Object.keys(update).length) await admin.from('content_posts').update(update).eq('id', postId)
+  revalidatePath('/content')
+  return { variants, media_url: mediaUrl }
+}
+
+/** Manually edit one platform's copy in a generated post. */
+export async function updatePostVariantAction(
+  postId: string,
+  platform: string,
+  edits: { caption: string; hashtags: string; cta: string },
+): Promise<{ error?: string }> {
+  const { workspaceId } = await ctx()
+  const admin = createAdminClient()
+  const { data: post } = await admin
+    .from('content_posts')
+    .select('platform_variants')
+    .eq('id', postId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  if (!post) return { error: 'Post not found.' }
+
+  const variants = { ...((post.platform_variants ?? {}) as PlatformVariants) }
+  const hashtags = edits.hashtags.split(/[\s,]+/).map((h) => h.replace(/^#/, '')).filter(Boolean)
+  variants[platform] = {
+    ...variants[platform],
+    caption: edits.caption.trim(),
+    hashtags,
+    cta: edits.cta.trim(),
+  }
+  const update: Record<string, unknown> = { platform_variants: variants }
+  if (platform === 'instagram') {
+    update.caption = edits.caption.trim()
+    update.hashtags = hashtags
+  }
+  await admin.from('content_posts').update(update).eq('id', postId).eq('workspace_id', workspaceId)
+  revalidatePath('/content')
+  return {}
+}
+
+/** Approve a generated post and (optionally) schedule it for auto-publishing. */
+export async function approvePostAction(formData: FormData): Promise<{ error?: string }> {
+  const { user, workspaceId } = await ctx()
+  const id = String(formData.get('id') ?? '')
+  const scheduledAt = String(formData.get('scheduled_at') ?? '').trim()
+  const targets = formData.getAll('target_platforms').map((t) => String(t)).filter(Boolean)
+  if (!id) return { error: 'Missing post.' }
+
+  const admin = createAdminClient()
+  const { data: post } = await admin
+    .from('content_posts')
+    .select('media_urls, platform_variants')
+    .eq('id', id)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  if (!post) return { error: 'Post not found.' }
+  if (!(post.media_urls as string[] | null)?.length) {
+    return { error: 'Add an image before approving — regenerate the visual or upload one.' }
+  }
+
+  const ig = igCaptionFrom((post.platform_variants ?? {}) as PlatformVariants)
+  const update: Record<string, unknown> = {
+    status: scheduledAt ? 'scheduled' : 'approved',
+    scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+    approved_by: user.id,
+    approved_at: new Date().toISOString(),
+    rejection_note: null,
+  }
+  if (targets.length) update.target_platforms = targets
+  if (ig.caption) update.caption = ig.caption
+  if (ig.hashtags.length) update.hashtags = ig.hashtags
+  await admin.from('content_posts').update(update).eq('id', id).eq('workspace_id', workspaceId)
+  revalidatePath('/content')
+  return {}
+}
+
+/** Reject a generated post with a note. */
+export async function rejectPostAction(formData: FormData): Promise<{ error?: string }> {
+  const { user, workspaceId } = await ctx()
+  const id = String(formData.get('id') ?? '')
+  const note = String(formData.get('note') ?? '').trim()
+  if (!id) return { error: 'Missing post.' }
+  const admin = createAdminClient()
+  await admin
+    .from('content_posts')
+    .update({ status: 'rejected', rejected_by: user.id, rejection_note: note || 'Rejected by client.' })
+    .eq('id', id)
+    .eq('workspace_id', workspaceId)
+  revalidatePath('/content')
+  return {}
 }
 
 export async function deletePostAction(formData: FormData): Promise<void> {
