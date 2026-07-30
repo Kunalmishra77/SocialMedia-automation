@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { CalendarDays } from 'lucide-react'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
+import { LocalTime } from '@/components/ui/local-time'
 import { CreatePost } from './create-post'
 import { ContentCalendar } from './content-calendar'
 
@@ -81,7 +82,7 @@ export default async function ContentPage({ searchParams }: { searchParams: Prom
             )}
             <div className="mt-3 flex items-center justify-between">
               <span className="text-xs text-muted-foreground">
-                {p.scheduled_at ? `Scheduled ${new Date(p.scheduled_at).toLocaleString()}` : 'Draft'}
+                {p.scheduled_at ? <LocalTime iso={p.scheduled_at} prefix="Scheduled " /> : 'Draft'}
               </span>
               <form action={deletePostAction}>
                 <input type="hidden" name="id" value={p.id} />
