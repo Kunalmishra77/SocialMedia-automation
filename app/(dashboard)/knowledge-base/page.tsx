@@ -7,6 +7,7 @@ import { KbEditor } from './kb-editor'
 import { AiSettings } from './ai-settings'
 import { DocIngest } from './doc-ingest'
 import { Sandbox } from './sandbox'
+import { DocumentsList, type DocGroup } from './documents-list'
 
 export default async function KnowledgeBasePage() {
   const user = await requireUser()
@@ -15,14 +16,30 @@ export default async function KnowledgeBasePage() {
   if (active.role === 'agent') redirect('/')
 
   const admin = createAdminClient()
-  const [{ data: entries }, { data: ws }] = await Promise.all([
+  const [{ data: entries }, { data: ws }, { data: docRows }] = await Promise.all([
     admin
       .from('knowledge_base')
       .select('id, title, category, char_count, is_active, created_at')
       .eq('workspace_id', active.workspaceId)
       .order('created_at', { ascending: false }),
     admin.from('workspaces').select('settings').eq('id', active.workspaceId).single(),
+    admin
+      .from('vector_documents')
+      .select('filename, file_type, chunk_index, content')
+      .eq('workspace_id', active.workspaceId)
+      .order('filename', { ascending: true })
+      .order('chunk_index', { ascending: true })
+      .limit(500),
   ])
+
+  // Group document chunks by filename for the "Uploaded documents" viewer.
+  const docMap = new Map<string, DocGroup>()
+  for (const r of docRows ?? []) {
+    const g: DocGroup = docMap.get(r.filename) ?? { filename: r.filename, fileType: r.file_type ?? 'txt', chunks: [] }
+    g.chunks.push({ index: r.chunk_index as number, preview: String(r.content ?? '').slice(0, 400) })
+    docMap.set(r.filename, g)
+  }
+  const docs = [...docMap.values()]
 
   const settings = (ws?.settings ?? {}) as {
     agent_persona?: string
@@ -70,13 +87,23 @@ export default async function KnowledgeBasePage() {
       <Card>
         <CardHeader className="flex-row items-center justify-between">
           <div>
+            <CardTitle>Documents</CardTitle>
+            <CardDescription>Upload PDF, Word, Excel, CSV or text files — chunked &amp; embedded for the AI.</CardDescription>
+          </div>
+          <DocIngest />
+        </CardHeader>
+        <CardContent>
+          <DocumentsList docs={docs} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <div>
             <CardTitle>Knowledge entries</CardTitle>
             <CardDescription>{entries?.length ?? 0} entries</CardDescription>
           </div>
-          <div className="flex gap-2">
-            <DocIngest />
-            <KbEditor />
-          </div>
+          <KbEditor />
         </CardHeader>
         <CardContent className="space-y-3">
           {(!entries || entries.length === 0) && (

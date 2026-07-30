@@ -13,6 +13,12 @@ import { BrandLogo } from '@/components/brand-logo'
 import type { MembershipRole, WorkspaceMembership } from '@/lib/authz'
 import { switchWorkspaceAction } from '@/lib/actions/workspace'
 
+// Client-facing role labels — the workspace owner's membership role is
+// 'super_admin', which would otherwise read as the platform operator.
+const ROLE_LABEL: Record<string, string> = {
+  super_admin: 'Owner', admin: 'Admin', manager: 'Manager', agent: 'Agent',
+}
+
 interface NavItem {
   label: string
   href: string
@@ -125,7 +131,7 @@ export function Sidebar({
         )}
         <div className="mt-1 flex items-center gap-1.5">
           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">{plan}</span>
-          <span className="text-[11px] capitalize text-muted-foreground">{role.replace('_', ' ')}</span>
+          <span className="text-[11px] capitalize text-muted-foreground">{ROLE_LABEL[role] ?? role}</span>
         </div>
       </div>
 

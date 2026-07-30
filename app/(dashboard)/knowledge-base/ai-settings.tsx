@@ -41,12 +41,6 @@ export function AiSettings({
     <form action={formAction} className="space-y-5">
       <div className="space-y-2">
         <Label htmlFor="agent_persona">AI persona / instructions</Label>
-        <div className="flex items-center gap-2">
-          <Input value={bizDesc} onChange={(e) => setBizDesc(e.target.value)} placeholder="Describe your business for AI to write a persona…" className="flex-1" />
-          <Button type="button" size="sm" onClick={genPersona} disabled={genBusy}>
-            {genBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Sparkles className="h-4 w-4" /> AI write</>}
-          </Button>
-        </div>
         <textarea
           id="agent_persona"
           name="agent_persona"
@@ -56,6 +50,13 @@ export function AiSettings({
           placeholder="e.g. You are a friendly support agent for a D2C skincare brand. Keep replies short and warm."
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
         />
+        <div className="flex items-center gap-2">
+          <Input value={bizDesc} onChange={(e) => setBizDesc(e.target.value)} placeholder="Optional: describe your business and let AI draft the persona above…" className="flex-1" />
+          <Button type="button" size="sm" variant="outline" onClick={genPersona} disabled={genBusy}>
+            {genBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Sparkles className="h-4 w-4" /> AI write</>}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">This persona is saved when you click <span className="font-medium">“Save AI settings”</span> at the bottom.</p>
       </div>
 
       <div className="space-y-3 rounded-lg border border-border p-4">

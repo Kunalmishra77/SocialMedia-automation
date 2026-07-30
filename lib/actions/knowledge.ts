@@ -104,17 +104,44 @@ export async function toggleKbEntryAction(formData: FormData): Promise<void> {
   revalidatePath('/knowledge-base')
 }
 
-/** Ingest a pasted document: chunk + embed into vector_documents. */
+/** Ingest a document — an uploaded file (PDF/Excel/CSV/DOCX/TXT) or pasted text:
+ *  extract → chunk → embed into vector_documents. */
 export async function ingestDocumentAction(formData: FormData): Promise<{ error?: string; ok?: string }> {
   const workspaceId = await requireManageKb()
-  const filename = String(formData.get('filename') ?? '').trim() || 'document.txt'
-  const content = String(formData.get('content') ?? '').trim()
-  if (content.length < 20) return { error: 'Paste at least a paragraph of text' }
-
   const admin = createAdminClient()
-  const { chunks, embedded } = await ingestDocument(admin, workspaceId, filename, 'txt', content)
+
+  let filename = String(formData.get('filename') ?? '').trim()
+  let content = ''
+  let fileType = 'txt'
+
+  const file = formData.get('file') as File | null
+  if (file && typeof file === 'object' && file.size > 0) {
+    if (file.size > 25 * 1024 * 1024) return { error: 'File must be under 25 MB.' }
+    const { extractText } = await import('@/lib/ai/extract')
+    const res = await extractText(file)
+    if (res.error) return { error: res.error }
+    content = res.text.trim()
+    fileType = res.fileType
+    filename = filename || file.name
+    if (content.length < 20) return { error: 'No readable text found in that file (is it a scanned/image-only PDF?).' }
+  } else {
+    content = String(formData.get('content') ?? '').trim()
+    filename = filename || 'document.txt'
+    if (content.length < 20) return { error: 'Paste at least a paragraph of text, or choose a file.' }
+  }
+
+  const { chunks, embedded } = await ingestDocument(admin, workspaceId, filename, fileType, content)
   revalidatePath('/knowledge-base')
-  return { ok: `Ingested ${chunks} chunks${embedded < chunks ? ` (${embedded} embedded — add an AI key for semantic search)` : ''}` }
+  return { ok: `Ingested “${filename}” — ${chunks} chunk(s)${embedded < chunks ? ` · ${embedded} embedded (add an AI key for semantic search)` : ' embedded ✓'}` }
+}
+
+/** Delete all chunks of an ingested document. */
+export async function deleteDocumentAction(formData: FormData): Promise<void> {
+  const workspaceId = await requireManageKb()
+  const filename = String(formData.get('filename') ?? '')
+  const admin = createAdminClient()
+  await admin.from('vector_documents').delete().eq('workspace_id', workspaceId).eq('filename', filename)
+  revalidatePath('/knowledge-base')
 }
 
 /** Update workspace AI settings stored in workspaces.settings JSONB. */

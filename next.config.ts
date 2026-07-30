@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Standalone output for Docker / Coolify deployment.
   output: "standalone",
+  // Document parsers run only on the server — keep them out of the bundle.
+  serverExternalPackages: ["pdf-parse", "mammoth", "xlsx"],
   // Allow larger Server Action bodies for content media uploads (images/reels).
   experimental: {
     serverActions: { bodySizeLimit: "110mb" },
