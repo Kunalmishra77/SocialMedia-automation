@@ -313,6 +313,35 @@ export async function rejectPostAction(formData: FormData): Promise<{ error?: st
   return {}
 }
 
+/** Reschedule a post to a new date/time (drag on the calendar). Client sends a
+ *  full ISO timestamp. Only movable posts (not published/publishing) can move. */
+export async function reschedulePostAction(id: string, iso: string): Promise<{ error?: string }> {
+  const { workspaceId } = await ctx()
+  if (!id || !iso) return { error: 'Missing data.' }
+  const when = new Date(iso)
+  if (isNaN(when.getTime())) return { error: 'Invalid date.' }
+
+  const admin = createAdminClient()
+  const { data: post } = await admin
+    .from('content_posts')
+    .select('status')
+    .eq('id', id)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  if (!post) return { error: 'Post not found.' }
+  if (['published', 'publishing'].includes(post.status)) return { error: 'Published posts can’t be moved.' }
+
+  // Moving onto the calendar means it should go out at that time.
+  const status = post.status === 'rejected' ? 'rejected' : 'scheduled'
+  await admin
+    .from('content_posts')
+    .update({ scheduled_at: when.toISOString(), status })
+    .eq('id', id)
+    .eq('workspace_id', workspaceId)
+  revalidatePath('/content')
+  return {}
+}
+
 export async function deletePostAction(formData: FormData): Promise<void> {
   const { workspaceId } = await ctx()
   const id = String(formData.get('id'))
