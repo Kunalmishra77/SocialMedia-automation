@@ -17,6 +17,13 @@ export function CreatePost() {
   const [genErr, setGenErr] = useState('')
   const [state, formAction, pending] = useActionState<{ error?: string }, FormData>(
     async (_prev, fd) => {
+      // Convert the datetime-local value (user's wall-clock) to a correct UTC ISO
+      // using the browser timezone, so the picked time is the user's LOCAL time.
+      const sched = fd.get('scheduled_at')
+      if (typeof sched === 'string' && sched) {
+        const d = new Date(sched)
+        if (!Number.isNaN(d.getTime())) fd.set('scheduled_at', d.toISOString())
+      }
       const res = await createPostAction(fd)
       if (!res.error) { setOpen(false); setCaption(''); setHashtags(''); setTopic('') }
       return res
