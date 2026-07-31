@@ -32,19 +32,26 @@ export async function getInstagramApp(admin: Admin, workspaceId: string): Promis
   return null
 }
 
+export type IgMode = 'workspace' | 'platform' | 'none'
+
 /** Public (no-secret) setup info to render in the client portal. */
 export async function getInstagramSetup(admin: Admin, workspaceId: string): Promise<{
-  configured: boolean; appId: string; verifyToken: string; callbackUrl: string
+  mode: IgMode; configured: boolean; appId: string; verifyToken: string; callbackUrl: string
 }> {
   const { data } = await admin.from('workspaces').select('settings').eq('id', workspaceId).maybeSingle()
   const cfg = (data?.settings as { instagram_app?: StoredApp } | null)?.instagram_app ?? {}
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
-  return {
-    configured: !!(cfg.app_id && cfg.app_secret_enc),
-    appId: cfg.app_id ?? '',
-    verifyToken: cfg.verify_token ?? '',
-    callbackUrl: `${base}/api/webhooks/instagram/${workspaceId}`,
+  const wsCallback = `${base}/api/webhooks/instagram/${workspaceId}`
+
+  // Client's own app takes precedence.
+  if (cfg.app_id && cfg.app_secret_enc) {
+    return { mode: 'workspace', configured: true, appId: cfg.app_id, verifyToken: cfg.verify_token ?? '', callbackUrl: wsCallback }
   }
+  // Platform-wide central app (operator configures the webhook once).
+  if (process.env.INSTAGRAM_APP_ID && process.env.INSTAGRAM_APP_SECRET) {
+    return { mode: 'platform', configured: true, appId: process.env.INSTAGRAM_APP_ID, verifyToken: '', callbackUrl: '' }
+  }
+  return { mode: 'none', configured: false, appId: '', verifyToken: '', callbackUrl: wsCallback }
 }
 
 /** Save/replace the workspace's Instagram app credentials. Generates a stable verify token. */

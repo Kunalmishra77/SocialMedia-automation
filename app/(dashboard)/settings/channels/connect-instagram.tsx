@@ -9,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-interface Setup { configured: boolean; appId: string; verifyToken: string; callbackUrl: string }
+interface Setup { mode: 'workspace' | 'platform' | 'none'; configured: boolean; appId: string; verifyToken: string; callbackUrl: string }
 interface Conn { id: string; handle: string | null; display_name: string | null }
 
 function Copyable({ label, value }: { label: string; value: string }) {
@@ -34,8 +34,31 @@ function Copyable({ label, value }: { label: string; value: string }) {
 
 export function InstagramChannel({ conn, setup }: { conn: Conn | null; setup: Setup }) {
   const [cfg, setCfg] = useState(setup)
-  const [guide, setGuide] = useState(!setup.configured)
-  const [editing, setEditing] = useState(!setup.configured)
+  const [guide, setGuide] = useState(setup.mode === 'none')
+  const [editing, setEditing] = useState(setup.mode === 'none')
+  // In platform (central-app) mode the client just connects — no own credentials.
+  const [ownApp, setOwnApp] = useState(setup.mode !== 'platform')
+
+  // Central app: the operator configured everything once — the client only connects.
+  if (cfg.mode === 'platform' && !ownApp) {
+    return (
+      <div className="space-y-3">
+        {conn ? (
+          <ConnectedRow conn={conn} />
+        ) : (
+          <>
+            <p className="rounded-md bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+              Powered by AI-Agentix — just connect your Instagram account. No app setup needed.
+            </p>
+            <ConnectStep />
+            <button type="button" onClick={() => { setOwnApp(true); setEditing(true) }} className="text-xs text-muted-foreground underline">
+              Advanced: use your own Instagram app instead
+            </button>
+          </>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -84,21 +107,27 @@ export function InstagramChannel({ conn, setup }: { conn: Conn | null; setup: Se
 
       {/* Connect / connected */}
       {conn ? (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
-          <span className="text-sm text-muted-foreground">Connected: {conn.display_name}{conn.handle ? ` · @${conn.handle}` : ''}</span>
-          <div className="flex items-center gap-2">
-            <Resubscribe id={conn.id} />
-            <form action={disconnectChannelAction}>
-              <input type="hidden" name="id" value={conn.id} />
-              <button className="rounded-md px-2 py-1 text-xs text-destructive hover:bg-destructive/10">Disconnect</button>
-            </form>
-          </div>
-        </div>
+        <ConnectedRow conn={conn} />
       ) : cfg.configured ? (
         <ConnectStep />
       ) : (
         <p className="text-xs text-muted-foreground">Save your App ID & Secret above to enable connecting.</p>
       )}
+    </div>
+  )
+}
+
+function ConnectedRow({ conn }: { conn: Conn }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+      <span className="text-sm text-muted-foreground">Connected: {conn.display_name}{conn.handle ? ` · @${conn.handle}` : ''}</span>
+      <div className="flex items-center gap-2">
+        <Resubscribe id={conn.id} />
+        <form action={disconnectChannelAction}>
+          <input type="hidden" name="id" value={conn.id} />
+          <button className="rounded-md px-2 py-1 text-xs text-destructive hover:bg-destructive/10">Disconnect</button>
+        </form>
+      </div>
     </div>
   )
 }
