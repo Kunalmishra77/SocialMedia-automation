@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership, roleCan } from '@/lib/authz'
 import { getTelegramMe, setTelegramWebhook } from '@/lib/channels/telegram'
 import { fetchIgMe, subscribeInstagramWebhooks, IG_CAPS } from '@/lib/channels/instagram'
-import { saveInstagramApp } from '@/lib/instagram-config'
+import { saveInstagramApp, clearInstagramApp } from '@/lib/instagram-config'
 import { encryptToken, decryptToken } from '@/lib/crypto'
 
 async function requireManageWorkspace(): Promise<string> {
@@ -75,6 +75,15 @@ export async function saveInstagramAppAction(formData: FormData): Promise<{ ok?:
   const { verifyToken } = await saveInstagramApp(admin, workspaceId, appId, appSecret)
   revalidatePath('/settings/channels')
   return { ok: true, verifyToken }
+}
+
+/** Switch this workspace off its own Instagram app onto the platform (central) app. */
+export async function useCentralInstagramAppAction(): Promise<{ ok?: boolean }> {
+  const workspaceId = await requireManageWorkspace()
+  const admin = createAdminClient()
+  await clearInstagramApp(admin, workspaceId)
+  revalidatePath('/settings/channels')
+  return { ok: true }
 }
 
 /**

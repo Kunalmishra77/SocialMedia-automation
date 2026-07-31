@@ -36,22 +36,31 @@ export type IgMode = 'workspace' | 'platform' | 'none'
 
 /** Public (no-secret) setup info to render in the client portal. */
 export async function getInstagramSetup(admin: Admin, workspaceId: string): Promise<{
-  mode: IgMode; configured: boolean; appId: string; verifyToken: string; callbackUrl: string
+  mode: IgMode; configured: boolean; appId: string; verifyToken: string; callbackUrl: string; platformAvailable: boolean
 }> {
   const { data } = await admin.from('workspaces').select('settings').eq('id', workspaceId).maybeSingle()
   const cfg = (data?.settings as { instagram_app?: StoredApp } | null)?.instagram_app ?? {}
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
   const wsCallback = `${base}/api/webhooks/instagram/${workspaceId}`
+  const platformAvailable = !!(process.env.INSTAGRAM_APP_ID && process.env.INSTAGRAM_APP_SECRET)
 
   // Client's own app takes precedence.
   if (cfg.app_id && cfg.app_secret_enc) {
-    return { mode: 'workspace', configured: true, appId: cfg.app_id, verifyToken: cfg.verify_token ?? '', callbackUrl: wsCallback }
+    return { mode: 'workspace', configured: true, appId: cfg.app_id, verifyToken: cfg.verify_token ?? '', callbackUrl: wsCallback, platformAvailable }
   }
   // Platform-wide central app (operator configures the webhook once).
-  if (process.env.INSTAGRAM_APP_ID && process.env.INSTAGRAM_APP_SECRET) {
-    return { mode: 'platform', configured: true, appId: process.env.INSTAGRAM_APP_ID, verifyToken: '', callbackUrl: '' }
+  if (platformAvailable) {
+    return { mode: 'platform', configured: true, appId: process.env.INSTAGRAM_APP_ID!, verifyToken: '', callbackUrl: '', platformAvailable }
   }
-  return { mode: 'none', configured: false, appId: '', verifyToken: '', callbackUrl: wsCallback }
+  return { mode: 'none', configured: false, appId: '', verifyToken: '', callbackUrl: wsCallback, platformAvailable }
+}
+
+/** Remove the workspace's own Instagram app credentials (fall back to the central app). */
+export async function clearInstagramApp(admin: Admin, workspaceId: string): Promise<void> {
+  const { data } = await admin.from('workspaces').select('settings').eq('id', workspaceId).single()
+  const settings = { ...((data?.settings ?? {}) as Record<string, unknown>) }
+  delete settings.instagram_app
+  await admin.from('workspaces').update({ settings }).eq('id', workspaceId)
 }
 
 /** Save/replace the workspace's Instagram app credentials. Generates a stable verify token. */

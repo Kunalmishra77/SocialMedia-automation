@@ -2,14 +2,15 @@
 
 import { useState } from 'react'
 import { Loader2, RefreshCw, Copy, Check, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import {
-  saveInstagramAppAction, connectInstagramTokenAction,
-  resubscribeInstagramAction, disconnectChannelAction,
+  saveInstagramAppAction, connectInstagramTokenAction, resubscribeInstagramAction,
+  disconnectChannelAction, useCentralInstagramAppAction,
 } from '@/lib/actions/channels'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-interface Setup { mode: 'workspace' | 'platform' | 'none'; configured: boolean; appId: string; verifyToken: string; callbackUrl: string }
+interface Setup { mode: 'workspace' | 'platform' | 'none'; configured: boolean; appId: string; verifyToken: string; callbackUrl: string; platformAvailable: boolean }
 interface Conn { id: string; handle: string | null; display_name: string | null }
 
 function Copyable({ label, value }: { label: string; value: string }) {
@@ -89,9 +90,12 @@ export function InstagramChannel({ conn, setup }: { conn: Conn | null; setup: Se
           onCancel={cfg.configured ? () => setEditing(false) : undefined}
         />
       ) : (
-        <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
           <span className="text-muted-foreground">App ID: <code className="text-foreground">{cfg.appId}</code> · credentials saved ✓</span>
-          <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(true)}>Edit</Button>
+          <div className="flex items-center gap-1">
+            {cfg.platformAvailable && <SwitchToCentral />}
+            <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(true)}>Edit</Button>
+          </div>
         </div>
       )}
 
@@ -114,6 +118,23 @@ export function InstagramChannel({ conn, setup }: { conn: Conn | null; setup: Se
         <p className="text-xs text-muted-foreground">Save your App ID & Secret above to enable connecting.</p>
       )}
     </div>
+  )
+}
+
+function SwitchToCentral() {
+  const router = useRouter()
+  const [busy, setBusy] = useState(false)
+  async function run() {
+    if (busy) return
+    if (!window.confirm('Switch to AI-Agentix’s Instagram app and remove your own credentials? You’ll then reconnect your account.')) return
+    setBusy(true)
+    await useCentralInstagramAppAction()
+    router.refresh()
+  }
+  return (
+    <Button type="button" variant="outline" size="sm" onClick={run} disabled={busy}>
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Use AI-Agentix app
+    </Button>
   )
 }
 
