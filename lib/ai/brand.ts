@@ -24,6 +24,12 @@ export interface BrandProfile {
   objectives: string         // content goals (awareness, sales, ...)
   brand_colors: string[]     // hex palette; [0] is primary
   logo_url: string
+  // ── Visual identity (Brand Kit — used for designed posts) ──
+  website: string            // footer website
+  phone: string              // footer phone
+  handle: string             // social handle
+  theme: string              // 'bold' | 'minimal' | 'dark' | 'playful'
+  imagery_style: string      // e.g. 'real photo' | '3d render' | 'illustration' | 'abstract gradient'
 }
 
 const EMPTY: BrandProfile = {
@@ -31,6 +37,7 @@ const EMPTY: BrandProfile = {
   content_style: '', language: 'English', products: '', topics_focus: [],
   topics_avoid: [], default_cta: '', competitors: '', objectives: '',
   brand_colors: [], logo_url: '',
+  website: '', phone: '', handle: '', theme: 'bold', imagery_style: 'real photo',
 }
 
 /** Merge the workspace columns + settings.brand_profile into a full profile. */
@@ -56,6 +63,11 @@ export async function getBrandProfile(admin: Admin, workspaceId: string): Promis
     brand_voice: bp.brand_voice || settings.agent_persona || '',
     topics_focus: bp.topics_focus ?? [],
     topics_avoid: bp.topics_avoid ?? [],
+    website: bp.website || '',
+    phone: bp.phone || '',
+    handle: bp.handle || '',
+    theme: bp.theme || 'bold',
+    imagery_style: bp.imagery_style || 'real photo',
   }
 }
 
@@ -77,6 +89,8 @@ export function buildBrandBlock(b: BrandProfile): string {
   if (b.topics_focus.length) lines.push(`Lean into these topics: ${b.topics_focus.join(', ')}`)
   if (b.topics_avoid.length) lines.push(`NEVER mention or make claims about: ${b.topics_avoid.join(', ')}`)
   if (b.competitors) lines.push(`Competitor references (for context, do not disparage): ${b.competitors}`)
+  if (b.theme) lines.push(`Visual theme: ${b.theme}.`)
+  if (b.imagery_style) lines.push(`Preferred imagery style: ${b.imagery_style}.`)
   lines.push(`Write all content in ${b.language}.`)
   return lines.join('\n')
 }

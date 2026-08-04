@@ -92,12 +92,50 @@ export function BrandForm({ profile }: { profile: BrandProfile }) {
         <div className="space-y-2">
           <Label htmlFor="brand_colors">Brand colors (hex)</Label>
           <Input id="brand_colors" name="brand_colors" defaultValue={profile.brand_colors.join(', ')} placeholder="#ea6a24, #16233a" />
-          <p className="text-xs text-muted-foreground">First is primary. Used on template visuals.</p>
+          <p className="text-xs text-muted-foreground">First is primary. Used on designed posts.</p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="logo_url">Logo URL</Label>
           <Input id="logo_url" name="logo_url" defaultValue={profile.logo_url} placeholder="https://…/logo.png" />
         </div>
+      </div>
+
+      <div className="rounded-lg border border-border p-4">
+        <p className="mb-3 text-sm font-semibold">Brand Kit — for designed posts (Design Studio)</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="theme">Visual theme</Label>
+            <select id="theme" name="theme" defaultValue={profile.theme || 'bold'} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <option value="bold">Bold (big headlines, high contrast)</option>
+              <option value="minimal">Minimal (clean, lots of whitespace)</option>
+              <option value="playful">Playful (rounded, friendly)</option>
+              <option value="dark">Dark (dark background)</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="imagery_style">Imagery style</Label>
+            <select id="imagery_style" name="imagery_style" defaultValue={profile.imagery_style || 'real photo'} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <option value="real photo">Real photography</option>
+              <option value="3d render">3D render</option>
+              <option value="illustration">Illustration</option>
+              <option value="abstract gradient">Abstract / gradient</option>
+              <option value="minimal product">Minimal product shot</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="website">Website (footer)</Label>
+            <Input id="website" name="website" defaultValue={profile.website} placeholder="www.yourbrand.com" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone (footer)</Label>
+            <Input id="phone" name="phone" defaultValue={profile.phone} placeholder="+91 00000 00000" />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="handle">Social handle</Label>
+            <Input id="handle" name="handle" defaultValue={profile.handle} placeholder="@yourbrand" />
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">Set once — every AI-designed post automatically uses these. AI also auto-picks the best layout for each topic.</p>
       </div>
 
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}

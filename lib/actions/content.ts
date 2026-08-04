@@ -347,7 +347,7 @@ export async function reschedulePostAction(id: string, iso: string): Promise<{ e
 export interface DesignPayload {
   design: PostDesign
   heroUrl: string | null
-  brand: { name: string; colors: string[]; logo: string }
+  brand: { name: string; colors: string[]; logo: string; website: string; phone: string; handle: string }
 }
 
 /** Generate structured design content (badge/headline/subtext) + an AI hero photo. */
@@ -362,7 +362,12 @@ export async function generateDesignAction(brief: string): Promise<{ payload?: D
   const design = await generateDesign({ brand, brief: b, kbContext })
   if (!design) return { error: 'Could not generate — try rephrasing the topic.' }
   const heroUrl = await generateHeroImage(admin, workspaceId, design.heroPrompt, brand, '1024x1024')
-  return { payload: { design, heroUrl, brand: { name: brand.business_name, colors: brand.brand_colors, logo: brand.logo_url } } }
+  return {
+    payload: {
+      design, heroUrl,
+      brand: { name: brand.business_name, colors: brand.brand_colors, logo: brand.logo_url, website: brand.website, phone: brand.phone, handle: brand.handle },
+    },
+  }
 }
 
 /** Regenerate just the hero photo for a given prompt. */

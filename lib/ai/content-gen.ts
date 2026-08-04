@@ -141,7 +141,10 @@ export interface PostDesign {
   cards: string[]        // 4 short 2-4 word labels (for card/list templates)
   cta: string            // short call-to-action / closing line
   heroPrompt: string     // detailed prompt for a photorealistic hero image (no text)
+  layout: string         // AI-chosen layout: hero | bullets | split | cards | receipt
 }
+
+const LAYOUTS = ['hero', 'bullets', 'split', 'cards', 'receipt']
 
 /** Generate designed-post content (badge + two-tone headline + subtext + hero prompt). */
 export async function generateDesign(opts: { brand: BrandProfile; brief: string; kbContext?: string }): Promise<PostDesign | null> {
@@ -161,14 +164,16 @@ export async function generateDesign(opts: { brand: BrandProfile; brief: string;
     '  "subtext": "one supporting sentence, sentence case, under 14 words",',
     '  "cards": ["4 short 2-4 word labels that support the topic (e.g. tasks, tips, benefits) — ALL CAPS"],',
     '  "cta": "a short closing line or call-to-action, under 12 words",',
-    '  "heroPrompt": "a detailed prompt for a PHOTOREALISTIC hero image relevant to the topic — describe subject, setting, lighting, mood, composition; cinematic, professional, high quality; NO text, NO words, NO logos in the image"',
+    `  "layout": "choose the BEST layout for THIS content — one of: ${LAYOUTS.join(', ')}. Use 'bullets' for a value/benefit list with a CTA, 'cards' for 4 parallel items/tips, 'receipt' for a cost/statement/list framed as a card, 'split' for one strong statement with a framed photo, 'hero' for a bold single message with a full photo.",`,
+    `  "heroPrompt": "a detailed prompt for a hero image in the brand's imagery style (${opts.brand.imagery_style || 'real photo'}) relevant to the topic — describe subject, setting, lighting, mood, composition; professional, high quality; NO text, NO words, NO logos in the image"`,
     '}',
   ].join('\n')
-  const raw = await callAI([{ role: 'system', content: system }, { role: 'user', content: user }], { maxTokens: 600, temperature: 0.8 })
+  const raw = await callAI([{ role: 'system', content: system }, { role: 'user', content: user }], { maxTokens: 650, temperature: 0.8 })
   if (!raw) return null
   const p = extractJson(raw) as Partial<PostDesign> | null
   if (!p?.headline) return null
   const cards = Array.isArray(p.cards) ? p.cards.map((c) => String(c).toUpperCase().slice(0, 30)).filter(Boolean).slice(0, 4) : []
+  const layout = LAYOUTS.includes(String(p.layout)) ? String(p.layout) : 'hero'
   return {
     badge: String(p.badge ?? '').toUpperCase().slice(0, 40),
     headline: String(p.headline ?? '').toUpperCase().slice(0, 120),
@@ -177,6 +182,7 @@ export async function generateDesign(opts: { brand: BrandProfile; brief: string;
     cards,
     cta: String(p.cta ?? '').slice(0, 120),
     heroPrompt: String(p.heroPrompt ?? opts.brief).slice(0, 1000),
+    layout,
   }
 }
 

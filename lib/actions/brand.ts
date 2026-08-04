@@ -40,6 +40,11 @@ export async function updateBrandProfileAction(formData: FormData): Promise<{ ok
     objectives: String(formData.get('objectives') ?? '').trim(),
     brand_colors: csv(formData.get('brand_colors')).filter((c) => /^#?[0-9a-fA-F]{3,8}$/.test(c)).map((c) => (c.startsWith('#') ? c : `#${c}`)),
     logo_url: String(formData.get('logo_url') ?? '').trim(),
+    website: String(formData.get('website') ?? '').trim(),
+    phone: String(formData.get('phone') ?? '').trim(),
+    handle: String(formData.get('handle') ?? '').trim(),
+    theme: String(formData.get('theme') ?? 'bold').trim() || 'bold',
+    imagery_style: String(formData.get('imagery_style') ?? 'real photo').trim() || 'real photo',
   }
 
   const settings = { ...((ws?.settings ?? {}) as Record<string, unknown>), brand_profile: profile }

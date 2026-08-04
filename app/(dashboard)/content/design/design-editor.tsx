@@ -107,9 +107,13 @@ export function DesignEditor() {
     const res = await generateDesignAction(b)
     setBusy(false)
     if (res.error || !res.payload) { setErr(res.error ?? 'Failed'); return }
-    payloadRef.current = res.payload
-    setCaption(`${res.payload.design.headline}\n\n${res.payload.design.subtext}`)
-    await render(template)
+    const pay = res.payload
+    payloadRef.current = pay
+    setCaption(`${pay.design.headline}\n\n${pay.design.subtext}`)
+    // AI Art Director picks the best layout for this content.
+    const picked = (TEMPLATES.find((t) => t.key === pay.design.layout)?.key ?? 'hero') as TemplateKey
+    setTemplate(picked)
+    await render(picked)
     setHasDesign(true)
   }
 
@@ -267,9 +271,14 @@ async function addHeroBand(fabric: any, canvas: any, url: string | null, left: n
   } catch { /* skip */ }
 }
 
-function addFooter(fabric: any, canvas: any, accent: string, name: string) {
+function footerText(p: DesignPayload) {
+  const site = p.brand.website || `www.${(p.brand.name || 'yourbrand').toLowerCase().replace(/\s+/g, '')}.com`
+  const phone = p.brand.phone || '+91 00000 00000'
+  return `${site}    |    ${phone}`
+}
+function addFooter(fabric: any, canvas: any, accent: string, p: DesignPayload) {
   canvas.add(new fabric.Rect({ left: 0, top: H - 56, width: W, height: 56, fill: accent }))
-  canvas.add(new fabric.IText(`www.${(name || 'yourbrand').toLowerCase().replace(/\s+/g, '')}.com    |    +91 00000 00000`, { left: 40, top: H - 38, fontFamily: 'InterEd', fontSize: 14, fontWeight: '600', fill: '#ffffff' }))
+  canvas.add(new fabric.IText(footerText(p), { left: 40, top: H - 38, fontFamily: 'InterEd', fontSize: 14, fontWeight: '600', fill: '#ffffff' }))
 }
 
 async function addLogo(fabric: any, canvas: any, url: string, right = true) {
@@ -287,7 +296,7 @@ async function buildHero(fabric: any, canvas: any, p: DesignPayload, c: Colors) 
   const y = addTwoTone(fabric, canvas, p, c, 42, 92, 470, 40)
   canvas.add(new fabric.Textbox(p.design.subtext, { left: 44, top: Math.min(y, 250), width: 460, fontFamily: 'InterEd', fontSize: 15, fill: GRAY }))
   await addHeroBand(fabric, canvas, p.heroUrl, 0, 300, W, 315)
-  addFooter(fabric, canvas, c.accent, p.brand.name)
+  addFooter(fabric, canvas, c.accent, p)
   await addLogo(fabric, canvas, p.brand.logo)
 }
 
@@ -307,7 +316,7 @@ async function buildBullets(fabric: any, canvas: any, p: DesignPayload, c: Color
   const cta = new fabric.IText(`  ${p.design.cta || 'Book Your Demo Today'}   →  `, { left: 58, top: by + 26, fontFamily: 'InterEd', fontSize: 14, fontWeight: '700', fill: '#ffffff' })
   canvas.add(new fabric.Rect({ left: 44, top: by + 18, width: (cta.width ?? 180) + 24, height: 42, rx: 21, ry: 21, fill: c.accent }))
   canvas.add(cta)
-  addFooter(fabric, canvas, c.accent, p.brand.name)
+  addFooter(fabric, canvas, c.accent, p)
 }
 
 async function buildSplit(fabric: any, canvas: any, p: DesignPayload, c: Colors) {
@@ -326,7 +335,7 @@ async function buildSplit(fabric: any, canvas: any, p: DesignPayload, c: Colors)
   // framed hero
   canvas.add(new fabric.Rect({ left: 34, top: 344, width: 472, height: 262, rx: 22, ry: 22, fill: c.accent }))
   await addHeroBand(fabric, canvas, p.heroUrl, 40, 350, 460, 250, 18)
-  addFooter(fabric, canvas, c.accent, p.brand.name)
+  addFooter(fabric, canvas, c.accent, p)
   await addLogo(fabric, canvas, p.brand.logo)
 }
 
@@ -344,7 +353,7 @@ async function buildCards(fabric: any, canvas: any, p: DesignPayload, c: Colors)
     canvas.add(new fabric.Circle({ left: cx + 116 - 9, top: cy + 31, radius: 9, fill: c.accent }))
     canvas.add(new fabric.Textbox(label, { left: cx + 16, top: cy + 78, width: 200, fontFamily: 'InterEd', fontSize: 15, fontWeight: '700', textAlign: 'center', fill: NAVY }))
   })
-  addFooter(fabric, canvas, c.accent, p.brand.name)
+  addFooter(fabric, canvas, c.accent, p)
   await addLogo(fabric, canvas, p.brand.logo)
 }
 
@@ -369,6 +378,6 @@ async function buildReceipt(fabric: any, canvas: any, p: DesignPayload, c: Color
   canvas.add(new fabric.IText('YOUR BEST HOURS', { left: 250, top: cardTop + 250, fontFamily: 'InterEd', fontSize: 17, fontWeight: '800', fill: c.accent }))
   // closing line
   canvas.add(new fabric.Textbox(p.design.cta || p.design.subtext, { left: 44, top: 560, width: 452, fontFamily: 'InterEd', fontSize: 15, fontWeight: '600', textAlign: 'center', fill: NAVY }))
-  addFooter(fabric, canvas, c.accent, p.brand.name)
+  addFooter(fabric, canvas, c.accent, p)
   await addLogo(fabric, canvas, p.brand.logo)
 }
