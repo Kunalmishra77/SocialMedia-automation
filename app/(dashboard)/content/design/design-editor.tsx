@@ -165,8 +165,9 @@ export function DesignEditor() {
     await render(tpl)
   }
 
-  // Load the AI poster into the canvas as a background + auto-overlay the brand logo.
-  async function loadPosterIntoCanvas(url: string, logo: string) {
+  // Load the AI poster into the canvas as a background. If the real logo was NOT
+  // baked into the image by the model, overlay it automatically.
+  async function loadPosterIntoCanvas(url: string, logo: string, logoBaked: boolean) {
     const fabric = fabRef.current, canvas = liveCanvas(); if (!fabric || !canvas) return
     const d = POSTER_DIMS[shape] ?? POSTER_DIMS.portrait
     canvas.setDimensions({ width: d.w, height: d.h })
@@ -177,7 +178,7 @@ export function DesignEditor() {
       const sc = Math.max(d.w / bg.width, d.h / bg.height)
       bg.set({ left: (d.w - bg.width * sc) / 2, top: (d.h - bg.height * sc) / 2, scaleX: sc, scaleY: sc, selectable: false, evented: false })
       canvas.add(bg); posterBgRef.current = bg
-      if (logo) {
+      if (logo && !logoBaked) {
         try {
           const lg = await fabric.FabricImage.fromURL(logo, { crossOrigin: 'anonymous' })
           const ls = Math.min(58 / lg.height, 150 / lg.width)
@@ -200,7 +201,7 @@ export function DesignEditor() {
     posterPromptRef.current = res.poster.imagePrompt
     setCaption(res.poster.caption)
     setHashtags(res.poster.hashtags.map((h) => `#${h}`).join(' '))
-    await loadPosterIntoCanvas(res.poster.url, res.poster.logo)
+    await loadPosterIntoCanvas(res.poster.url, res.poster.logo, res.poster.logoBaked)
     setHasDesign(true)
   }
   async function regenPoster() {

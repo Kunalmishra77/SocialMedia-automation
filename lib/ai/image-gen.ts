@@ -72,6 +72,43 @@ export async function generatePoster(admin: Admin, workspaceId: string, prompt: 
   return callGptImage(admin, workspaceId, prompt, 'high', size)
 }
 
+/**
+ * Poster generation that INTEGRATES the actual brand logo — passes the logo as an
+ * input image to gpt-image-1's edits endpoint so the model places the real logo
+ * (like giving ChatGPT your logo). Returns null (caller falls back) if the logo
+ * can't be used (e.g. SVG or fetch fails).
+ */
+export async function generatePosterWithLogo(admin: Admin, workspaceId: string, prompt: string, logoUrl: string, size: string): Promise<string | null> {
+  const key = process.env.OPENAI_API_KEY
+  if (!key || !logoUrl) return null
+  try {
+    const logoRes = await fetch(logoUrl)
+    if (!logoRes.ok) return null
+    const contentType = logoRes.headers.get('content-type') || 'image/png'
+    if (contentType.includes('svg')) return null // edits needs a raster image
+    const logoBuf = Buffer.from(await logoRes.arrayBuffer())
+    const form = new FormData()
+    form.append('model', 'gpt-image-1')
+    form.append('image', new Blob([logoBuf], { type: contentType }), 'logo.png')
+    form.append('prompt', `${prompt}\n\nBRAND LOGO: a brand logo image is provided as input — place THIS EXACT provided logo prominently and crisply (e.g. a clean top corner), rendered unaltered. Do NOT invent or redraw a different logo.`.slice(0, 4000))
+    form.append('size', size)
+    form.append('quality', 'high')
+    form.append('n', '1')
+    const res = await fetch('https://api.openai.com/v1/images/edits', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form })
+    if (!res.ok) return null
+    const data = await res.json()
+    const b64 = data?.data?.[0]?.b64_json
+    if (!b64) return null
+    const bytes = Buffer.from(b64, 'base64')
+    const path = `${workspaceId}/poster-${Date.now()}-${Math.random().toString(36).slice(2)}.png`
+    const { error } = await admin.storage.from(BUCKET).upload(path, bytes, { contentType: 'image/png', upsert: false })
+    if (error) return null
+    return admin.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+  } catch {
+    return null
+  }
+}
+
 /** Shared gpt-image-1 call → upload → public URL. */
 async function callGptImage(
   admin: Admin, workspaceId: string, prompt: string,

@@ -7,7 +7,7 @@ import { getUser, getActiveMembership } from '@/lib/authz'
 import { callAI, aiConfigured } from '@/lib/ai/client'
 import { getBrandProfile } from '@/lib/ai/brand'
 import { generateContent, generateDesign, expandPoster, describeReference, type PlatformVariants, type PostDesign } from '@/lib/ai/content-gen'
-import { generatePostImage, generateHeroImage, generatePoster } from '@/lib/ai/image-gen'
+import { generatePostImage, generateHeroImage, generatePoster, generatePosterWithLogo } from '@/lib/ai/image-gen'
 import { retrieveKbContext } from '@/lib/ai/reply'
 
 /** IG feed post caption from the instagram variant (falls back to first variant). */
@@ -381,14 +381,15 @@ export async function regenerateHeroAction(prompt: string): Promise<{ url?: stri
 
 // ── AI Poster: full gpt-image-1 poster from topic + brand kit ──────────────
 
-export interface PosterResult { url: string; imagePrompt: string; caption: string; hashtags: string[]; logo: string }
+export interface PosterResult { url: string; imagePrompt: string; caption: string; hashtags: string[]; logo: string; logoBaked: boolean }
 
 /** Social size → gpt-image-1 dimensions. */
 const POSTER_SIZE: Record<string, '1024x1536' | '1024x1024' | '1536x1024'> = {
   portrait: '1024x1536', square: '1024x1024', landscape: '1536x1024',
 }
 
-/** Topic + brand kit → AI writes a detailed prompt → gpt-image-1 full poster. */
+/** Topic + brand kit → AI writes a detailed prompt → gpt-image-1 full poster
+ *  (with the real brand logo integrated when available). */
 export async function generatePosterAction(brief: string, shape = 'portrait', refUrl?: string): Promise<{ poster?: PosterResult; error?: string }> {
   const { workspaceId } = await ctx()
   if (!aiConfigured()) return { error: 'Add an OpenAI key to generate posters.' }
@@ -400,9 +401,14 @@ export async function generatePosterAction(brief: string, shape = 'portrait', re
   const referenceStyle = refUrl ? (await describeReference(refUrl)) ?? undefined : undefined
   const ex = await expandPoster({ brand, brief: b, kbContext, shape, referenceStyle })
   if (!ex) return { error: 'Could not build the poster — try rephrasing.' }
-  const url = await generatePoster(admin, workspaceId, ex.imagePrompt, POSTER_SIZE[shape] ?? '1024x1536')
+  const size = POSTER_SIZE[shape] ?? '1024x1536'
+  // Prefer integrating the actual brand logo; fall back to plain generation.
+  let logoBaked = false
+  let url = brand.logo_url ? await generatePosterWithLogo(admin, workspaceId, ex.imagePrompt, brand.logo_url, size) : null
+  if (url) logoBaked = true
+  else url = await generatePoster(admin, workspaceId, ex.imagePrompt, size)
   if (!url) return { error: 'Image generation failed. Ensure your OpenAI account has gpt-image-1 access (may need org verification), then retry.' }
-  return { poster: { url, imagePrompt: ex.imagePrompt, caption: ex.caption, hashtags: ex.hashtags, logo: brand.logo_url } }
+  return { poster: { url, imagePrompt: ex.imagePrompt, caption: ex.caption, hashtags: ex.hashtags, logo: brand.logo_url, logoBaked } }
 }
 
 /** Upload a reference image (for style-guided generation) → returns its URL. */
@@ -423,7 +429,10 @@ export async function uploadReferenceAction(formData: FormData): Promise<{ url?:
 export async function regeneratePosterAction(prompt: string, shape = 'portrait'): Promise<{ url?: string | null; error?: string }> {
   const { workspaceId } = await ctx()
   const admin = createAdminClient()
-  const url = await generatePoster(admin, workspaceId, prompt, POSTER_SIZE[shape] ?? '1024x1536')
+  const brand = await getBrandProfile(admin, workspaceId)
+  const size = POSTER_SIZE[shape] ?? '1024x1536'
+  const url = (brand.logo_url ? await generatePosterWithLogo(admin, workspaceId, prompt, brand.logo_url, size) : null)
+    ?? await generatePoster(admin, workspaceId, prompt, size)
   return { url }
 }
 
