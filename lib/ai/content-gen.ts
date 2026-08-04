@@ -131,6 +131,48 @@ export async function generateContent(opts: {
   }
 }
 
+/** Structured content for a designed (template) post — precise text rendered in
+ *  the editor, plus an art-directed prompt for the AI hero photo. */
+export interface PostDesign {
+  badge: string          // small pill label, e.g. "THE HIDDEN COST"
+  headline: string       // main line(s), UPPERCASE punchy
+  headlineAccent: string // the portion of the headline to highlight in the accent colour
+  subtext: string        // one supporting line
+  heroPrompt: string     // detailed prompt for a photorealistic hero image (no text)
+}
+
+/** Generate designed-post content (badge + two-tone headline + subtext + hero prompt). */
+export async function generateDesign(opts: { brand: BrandProfile; brief: string; kbContext?: string }): Promise<PostDesign | null> {
+  if (!aiConfigured()) return null
+  const system = [
+    'You are a senior social-media art director and copywriter. You design bold, premium branded posts.',
+    'BRAND PROFILE:', buildBrandBlock(opts.brand),
+    opts.kbContext ? `\nBUSINESS KNOWLEDGE:\n${opts.kbContext}` : '',
+  ].join('\n')
+  const user = [
+    `Topic: "${opts.brief}"`,
+    'Design ONE scroll-stopping Instagram post. Return ONLY JSON:',
+    '{',
+    '  "badge": "2-4 word ALL-CAPS pill label",',
+    '  "headline": "punchy ALL-CAPS headline, max ~8 words, can be two short sentences",',
+    '  "headlineAccent": "the exact substring of headline to highlight in the accent colour (a key phrase)",',
+    '  "subtext": "one supporting sentence, sentence case, under 14 words",',
+    '  "heroPrompt": "a detailed prompt for a PHOTOREALISTIC hero image relevant to the topic — describe subject, setting, lighting, mood, composition; cinematic, professional, high quality; NO text, NO words, NO logos in the image"',
+    '}',
+  ].join('\n')
+  const raw = await callAI([{ role: 'system', content: system }, { role: 'user', content: user }], { maxTokens: 500, temperature: 0.8 })
+  if (!raw) return null
+  const p = extractJson(raw) as Partial<PostDesign> | null
+  if (!p?.headline) return null
+  return {
+    badge: String(p.badge ?? '').toUpperCase().slice(0, 40),
+    headline: String(p.headline ?? '').toUpperCase().slice(0, 120),
+    headlineAccent: String(p.headlineAccent ?? '').toUpperCase().slice(0, 80),
+    subtext: String(p.subtext ?? '').slice(0, 160),
+    heroPrompt: String(p.heroPrompt ?? opts.brief).slice(0, 1000),
+  }
+}
+
 /**
  * Propose one fresh, specific post topic for a scheduled content plan, grounded
  * on the brand + themes, avoiding recently used topics. Returns null if AI off.

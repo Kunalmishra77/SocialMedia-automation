@@ -6,8 +6,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership } from '@/lib/authz'
 import { callAI, aiConfigured } from '@/lib/ai/client'
 import { getBrandProfile } from '@/lib/ai/brand'
-import { generateContent, type PlatformVariants } from '@/lib/ai/content-gen'
-import { generatePostImage } from '@/lib/ai/image-gen'
+import { generateContent, generateDesign, type PlatformVariants, type PostDesign } from '@/lib/ai/content-gen'
+import { generatePostImage, generateHeroImage } from '@/lib/ai/image-gen'
 import { retrieveKbContext } from '@/lib/ai/reply'
 
 /** IG feed post caption from the instagram variant (falls back to first variant). */
@@ -340,6 +340,73 @@ export async function reschedulePostAction(id: string, iso: string): Promise<{ e
     .eq('workspace_id', workspaceId)
   revalidatePath('/content')
   return {}
+}
+
+// ── Design Studio: AI designed posts (branded template + AI hero photo) ─────
+
+export interface DesignPayload {
+  design: PostDesign
+  heroUrl: string | null
+  brand: { name: string; colors: string[]; logo: string }
+}
+
+/** Generate structured design content (badge/headline/subtext) + an AI hero photo. */
+export async function generateDesignAction(brief: string): Promise<{ payload?: DesignPayload; error?: string }> {
+  const { workspaceId } = await ctx()
+  if (!aiConfigured()) return { error: 'Add an OpenAI key to generate designs.' }
+  const b = brief.trim()
+  if (!b) return { error: 'Enter a topic or idea.' }
+  const admin = createAdminClient()
+  const brand = await getBrandProfile(admin, workspaceId)
+  const kbContext = await retrieveKbContext(admin, workspaceId, b, false)
+  const design = await generateDesign({ brand, brief: b, kbContext })
+  if (!design) return { error: 'Could not generate — try rephrasing the topic.' }
+  const heroUrl = await generateHeroImage(admin, workspaceId, design.heroPrompt, brand, '1024x1024')
+  return { payload: { design, heroUrl, brand: { name: brand.business_name, colors: brand.brand_colors, logo: brand.logo_url } } }
+}
+
+/** Regenerate just the hero photo for a given prompt. */
+export async function regenerateHeroAction(prompt: string): Promise<{ url?: string | null; error?: string }> {
+  const { workspaceId } = await ctx()
+  const admin = createAdminClient()
+  const brand = await getBrandProfile(admin, workspaceId)
+  const url = await generateHeroImage(admin, workspaceId, prompt, brand, '1024x1024')
+  return { url }
+}
+
+/** Save the exported design PNG as a content post (draft or scheduled). */
+export async function saveDesignAction(input: {
+  dataUrl: string; caption: string; hashtags?: string; brief?: string; scheduledAt?: string; postId?: string
+}): Promise<{ id?: string; error?: string }> {
+  const { user, workspaceId } = await ctx()
+  const m = input.dataUrl.match(/^data:image\/png;base64,(.+)$/)
+  if (!m) return { error: 'Invalid image data.' }
+  const admin = createAdminClient()
+  const bytes = Buffer.from(m[1], 'base64')
+  const path = `${workspaceId}/design-${Date.now()}-${Math.random().toString(36).slice(2)}.png`
+  const { error: upErr } = await admin.storage.from('content-media').upload(path, bytes, { contentType: 'image/png', upsert: false })
+  if (upErr) return { error: `Upload failed: ${upErr.message}` }
+  const publicUrl = admin.storage.from('content-media').getPublicUrl(path).data.publicUrl
+
+  const hashtags = (input.hashtags ?? '').split(/[\s,]+/).map((h) => h.replace(/^#/, '')).filter(Boolean)
+  const scheduled = input.scheduledAt?.trim()
+  const row: Record<string, unknown> = {
+    workspace_id: workspaceId, type: 'feed', brief: input.brief ?? null,
+    caption: input.caption ?? '', hashtags, media_urls: [publicUrl],
+    target_platforms: ['instagram'], image_source: 'design',
+    status: scheduled ? 'scheduled' : 'draft',
+    scheduled_at: scheduled ? new Date(scheduled).toISOString() : null,
+    ai_generated: true, created_by: user.id,
+  }
+  if (input.postId) {
+    await admin.from('content_posts').update(row).eq('id', input.postId).eq('workspace_id', workspaceId)
+    revalidatePath('/content')
+    return { id: input.postId }
+  }
+  const { data, error } = await admin.from('content_posts').insert(row).select('id').single()
+  if (error || !data) return { error: 'Could not save the design.' }
+  revalidatePath('/content')
+  return { id: data.id }
 }
 
 export async function deletePostAction(formData: FormData): Promise<void> {

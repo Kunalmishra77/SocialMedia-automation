@@ -36,14 +36,45 @@ async function tryOpenAiImage(
   prompt: string,
   brand: BrandProfile,
 ): Promise<GeneratedImage | null> {
+  const styled = `${prompt}\n\nSquare social media image. Modern, high quality, on-brand${brand.brand_colors[0] ? `, accent color ${brand.brand_colors[0]}` : ''}. No text, no words, no logos, no watermarks.`
+  const url = await callGptImage(admin, workspaceId, styled, 'medium', '1024x1024')
+  return url ? { url, source: 'ai' } : null
+}
+
+/**
+ * Generate an art-directed PHOTOREALISTIC hero image (no template fallback).
+ * Used by the design editor — returns a clean photo to composite branded text over.
+ */
+export async function generateHeroImage(
+  admin: Admin,
+  workspaceId: string,
+  prompt: string,
+  brand: BrandProfile,
+  size: '1024x1024' | '1024x1536' = '1024x1024',
+): Promise<string | null> {
+  if (!prompt) return null
+  const styled = [
+    prompt,
+    '',
+    'Photorealistic, cinematic, professional photography. Sharp focus, natural lighting, high detail, editorial quality.',
+    brand.brand_colors[0] ? `Subtle ${brand.brand_colors[0]} accent tones welcome.` : '',
+    'Absolutely NO text, NO words, NO letters, NO logos, NO watermarks, NO UI overlays in the image.',
+  ].filter(Boolean).join('\n')
+  return callGptImage(admin, workspaceId, styled, 'high', size)
+}
+
+/** Shared gpt-image-1 call → upload → public URL. */
+async function callGptImage(
+  admin: Admin, workspaceId: string, prompt: string,
+  quality: 'low' | 'medium' | 'high', size: string,
+): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY
-  if (!key || !prompt) return null
+  if (!key) return null
   try {
-    const styled = `${prompt}\n\nSquare social media image. Modern, high quality, on-brand${brand.brand_colors[0] ? `, accent color ${brand.brand_colors[0]}` : ''}. No text, no words, no logos, no watermarks.`
     const res = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: 'gpt-image-1', prompt: styled.slice(0, 3000), size: '1024x1024', quality: 'medium', n: 1 }),
+      body: JSON.stringify({ model: 'gpt-image-1', prompt: prompt.slice(0, 3200), size, quality, n: 1 }),
     })
     if (!res.ok) return null
     const data = await res.json()
@@ -53,8 +84,7 @@ async function tryOpenAiImage(
     const path = `${workspaceId}/ai-${Date.now()}-${Math.random().toString(36).slice(2)}.png`
     const { error } = await admin.storage.from(BUCKET).upload(path, bytes, { contentType: 'image/png', upsert: false })
     if (error) return null
-    const { data: pub } = admin.storage.from(BUCKET).getPublicUrl(path)
-    return { url: pub.publicUrl, source: 'ai' }
+    return admin.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
   } catch {
     return null
   }
