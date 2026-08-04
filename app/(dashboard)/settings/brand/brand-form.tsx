@@ -139,6 +139,22 @@ export function BrandForm({ profile }: { profile: BrandProfile }) {
             <Label htmlFor="handle">Social handle</Label>
             <Input id="handle" name="handle" defaultValue={profile.handle} placeholder="@yourbrand" />
           </div>
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="product_files">Product photos (up to 4)</Label>
+            {profile.product_images.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {profile.product_images.map((u, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={i} src={u} alt="" className="h-16 w-16 rounded border border-border bg-white object-contain p-1" />
+                ))}
+              </div>
+            )}
+            <input id="product_files" name="product_files" type="file" multiple accept="image/png,image/jpeg,image/webp" className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm" />
+            {profile.product_images.length > 0 && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" name="clear_products" /> Remove current product photos</label>
+            )}
+            <p className="text-xs text-muted-foreground">Real product images (transparent PNG best). AI puts your <b>actual products</b> into posters. Leave empty to keep current.</p>
+          </div>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">Set once — every AI-designed post automatically uses these. AI also auto-picks the best layout for each topic.</p>
       </div>

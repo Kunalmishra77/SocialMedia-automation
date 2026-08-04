@@ -7,7 +7,7 @@ import { generateDesignAction, regenerateHeroAction, saveDesignAction, generateP
 import { Button } from '@/components/ui/button'
 
 const POSTER_DIMS: Record<string, { w: number; h: number }> = {
-  portrait: { w: 456, h: 684 }, square: { w: 540, h: 540 }, landscape: { w: 640, h: 427 },
+  portrait: { w: 456, h: 684 }, square: { w: 512, h: 512 }, landscape: { w: 540, h: 360 },
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -106,7 +106,7 @@ export function DesignEditor() {
     if (!fabric || !canvas || !p) return
     suspendRef.current = true
     try {
-      canvas.setDimensions({ width: W, height: H })
+      canvas.setDimensions({ width: W, height: H }); canvas.calcOffset()
       canvas.clear(); canvas.backgroundColor = '#ffffff'
       const c = colorsOf(p)
       if (tpl === 'hero') await buildHero(fabric, canvas, p, c)
@@ -170,7 +170,7 @@ export function DesignEditor() {
   async function loadPosterIntoCanvas(url: string, logo: string, logoBaked: boolean) {
     const fabric = fabRef.current, canvas = liveCanvas(); if (!fabric || !canvas) return
     const d = POSTER_DIMS[shape] ?? POSTER_DIMS.portrait
-    canvas.setDimensions({ width: d.w, height: d.h })
+    canvas.setDimensions({ width: d.w, height: d.h }); canvas.calcOffset()
     suspendRef.current = true
     try {
       canvas.clear(); canvas.backgroundColor = '#ffffff'
@@ -284,13 +284,13 @@ export function DesignEditor() {
             ))}
           </div>
         )}
-        <div className="overflow-hidden rounded-xl border border-border bg-muted/30 p-3">
+        <div className="flex justify-center overflow-auto rounded-xl border border-border bg-muted/30 p-3">
           {!hasDesign && (
             <p className="flex min-h-[380px] items-center justify-center px-8 text-center text-sm text-muted-foreground">
-              {(posterBusy || busy) ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> {mode === 'poster' ? 'Painting your poster… (~15–30s)' : 'Designing…'}</span> : 'Enter a topic → Generate. The result appears here — fully editable.'}
+              {(posterBusy || busy) ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> {mode === 'poster' ? 'Painting your poster… (~15–30s)' : 'Designing…'}</span> : 'Enter a topic → Generate. The result appears here — add or edit overlays on the canvas.'}
             </p>
           )}
-          <canvas ref={elRef} className={`mx-auto block w-full max-w-[560px] rounded-md shadow-[var(--shadow-card)] ${hasDesign ? '' : 'hidden'}`} />
+          <canvas ref={elRef} className={`block rounded-md shadow-[var(--shadow-card)] ${hasDesign ? '' : 'hidden'}`} />
         </div>
         {hasDesign && (
           <div className="flex flex-wrap gap-1.5">

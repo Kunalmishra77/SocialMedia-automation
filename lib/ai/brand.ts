@@ -30,6 +30,7 @@ export interface BrandProfile {
   handle: string             // social handle
   theme: string              // 'bold' | 'minimal' | 'dark' | 'playful'
   imagery_style: string      // e.g. 'real photo' | '3d render' | 'illustration' | 'abstract gradient'
+  product_images: string[]   // real product photos → used as inputs so AI shows the actual products
 }
 
 const EMPTY: BrandProfile = {
@@ -37,7 +38,7 @@ const EMPTY: BrandProfile = {
   content_style: '', language: 'English', products: '', topics_focus: [],
   topics_avoid: [], default_cta: '', competitors: '', objectives: '',
   brand_colors: [], logo_url: '',
-  website: '', phone: '', handle: '', theme: 'bold', imagery_style: 'real photo',
+  website: '', phone: '', handle: '', theme: 'bold', imagery_style: 'real photo', product_images: [],
 }
 
 /** Merge the workspace columns + settings.brand_profile into a full profile. */
@@ -68,6 +69,7 @@ export async function getBrandProfile(admin: Admin, workspaceId: string): Promis
     handle: bp.handle || '',
     theme: bp.theme || 'bold',
     imagery_style: bp.imagery_style || 'real photo',
+    product_images: bp.product_images ?? [],
   }
 }
 

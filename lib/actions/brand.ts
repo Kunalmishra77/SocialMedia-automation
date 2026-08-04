@@ -37,6 +37,22 @@ export async function updateBrandProfileAction(formData: FormData): Promise<{ ok
 
   const { data: ws } = await admin.from('workspaces').select('settings').eq('id', workspaceId).single()
 
+  // Product photos: keep existing unless new ones are uploaded (or cleared).
+  const existingProducts = (((ws?.settings as Record<string, unknown>)?.brand_profile as { product_images?: string[] } | undefined)?.product_images) ?? []
+  let productImages = existingProducts
+  if (formData.get('clear_products') === 'on') productImages = []
+  const productFiles = formData.getAll('product_files').filter((f): f is File => f instanceof File && f.size > 0).slice(0, 4)
+  if (productFiles.length) {
+    productImages = []
+    for (const pf of productFiles) {
+      if (pf.size > 8 * 1024 * 1024) continue
+      const ext = (pf.name.split('.').pop() || 'png').toLowerCase()
+      const path = `${workspaceId}/product-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error } = await admin.storage.from('content-media').upload(path, pf, { contentType: pf.type || undefined, upsert: false })
+      if (!error) productImages.push(admin.storage.from('content-media').getPublicUrl(path).data.publicUrl)
+    }
+  }
+
   const profile: BrandProfile = {
     business_name: String(formData.get('business_name') ?? '').trim(),
     industry: String(formData.get('industry') ?? '').trim(),
@@ -57,6 +73,7 @@ export async function updateBrandProfileAction(formData: FormData): Promise<{ ok
     handle: String(formData.get('handle') ?? '').trim(),
     theme: String(formData.get('theme') ?? 'bold').trim() || 'bold',
     imagery_style: String(formData.get('imagery_style') ?? 'real photo').trim() || 'real photo',
+    product_images: productImages,
   }
 
   const settings = { ...((ws?.settings ?? {}) as Record<string, unknown>), brand_profile: profile }

@@ -7,7 +7,7 @@ import { getUser, getActiveMembership } from '@/lib/authz'
 import { callAI, aiConfigured } from '@/lib/ai/client'
 import { getBrandProfile } from '@/lib/ai/brand'
 import { generateContent, generateDesign, expandPoster, describeReference, type PlatformVariants, type PostDesign } from '@/lib/ai/content-gen'
-import { generatePostImage, generateHeroImage, generatePoster, generatePosterWithLogo } from '@/lib/ai/image-gen'
+import { generatePostImage, generateHeroImage, generatePoster, generatePosterWithAssets } from '@/lib/ai/image-gen'
 import { retrieveKbContext } from '@/lib/ai/reply'
 
 /** IG feed post caption from the instagram variant (falls back to first variant). */
@@ -402,13 +402,24 @@ export async function generatePosterAction(brief: string, shape = 'portrait', re
   const ex = await expandPoster({ brand, brief: b, kbContext, shape, referenceStyle })
   if (!ex) return { error: 'Could not build the poster — try rephrasing.' }
   const size = POSTER_SIZE[shape] ?? '1024x1536'
-  // Prefer integrating the actual brand logo; fall back to plain generation.
+  // Prefer integrating real brand assets (logo + product photos); fall back to plain generation.
+  const assets = [brand.logo_url, ...brand.product_images].filter(Boolean)
+  const prompt = assetInstruction(brand) + ex.imagePrompt
   let logoBaked = false
-  let url = brand.logo_url ? await generatePosterWithLogo(admin, workspaceId, ex.imagePrompt, brand.logo_url, size) : null
+  let url = assets.length ? await generatePosterWithAssets(admin, workspaceId, prompt, assets, size) : null
   if (url) logoBaked = true
   else url = await generatePoster(admin, workspaceId, ex.imagePrompt, size)
   if (!url) return { error: 'Image generation failed. Ensure your OpenAI account has gpt-image-1 access (may need org verification), then retry.' }
   return { poster: { url, imagePrompt: ex.imagePrompt, caption: ex.caption, hashtags: ex.hashtags, logo: brand.logo_url, logoBaked } }
+}
+
+/** Instruction prefix telling the model how to use the provided input images. */
+function assetInstruction(brand: { logo_url: string; product_images: string[] }): string {
+  const parts: string[] = []
+  if (brand.logo_url) parts.push('the brand LOGO — place THIS EXACT logo prominently and crisply, unaltered')
+  if (brand.product_images.length) parts.push(`${brand.product_images.length} REAL PRODUCT photo(s) — show THESE EXACT products in the poster, do not invent different products`)
+  if (!parts.length) return ''
+  return `PROVIDED INPUT IMAGES (use them faithfully): in order, ${parts.join('; then ')}.\n\n`
 }
 
 /** Upload a reference image (for style-guided generation) → returns its URL. */
@@ -431,7 +442,8 @@ export async function regeneratePosterAction(prompt: string, shape = 'portrait')
   const admin = createAdminClient()
   const brand = await getBrandProfile(admin, workspaceId)
   const size = POSTER_SIZE[shape] ?? '1024x1536'
-  const url = (brand.logo_url ? await generatePosterWithLogo(admin, workspaceId, prompt, brand.logo_url, size) : null)
+  const assets = [brand.logo_url, ...brand.product_images].filter(Boolean)
+  const url = (assets.length ? await generatePosterWithAssets(admin, workspaceId, assetInstruction(brand) + prompt, assets, size) : null)
     ?? await generatePoster(admin, workspaceId, prompt, size)
   return { url }
 }

@@ -73,24 +73,32 @@ export async function generatePoster(admin: Admin, workspaceId: string, prompt: 
 }
 
 /**
- * Poster generation that INTEGRATES the actual brand logo — passes the logo as an
- * input image to gpt-image-1's edits endpoint so the model places the real logo
- * (like giving ChatGPT your logo). Returns null (caller falls back) if the logo
- * can't be used (e.g. SVG or fetch fails).
+ * Poster generation that INTEGRATES real brand assets (logo + product photos) —
+ * passes them as input images to gpt-image-1's edits endpoint so the model uses
+ * the ACTUAL logo/products (like giving ChatGPT your images). The prompt should
+ * already instruct how to use them. Returns null (caller falls back) if no usable
+ * raster asset or the call fails.
  */
-export async function generatePosterWithLogo(admin: Admin, workspaceId: string, prompt: string, logoUrl: string, size: string): Promise<string | null> {
+export async function generatePosterWithAssets(admin: Admin, workspaceId: string, prompt: string, assetUrls: string[], size: string): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY
-  if (!key || !logoUrl) return null
+  if (!key || !assetUrls.length) return null
   try {
-    const logoRes = await fetch(logoUrl)
-    if (!logoRes.ok) return null
-    const contentType = logoRes.headers.get('content-type') || 'image/png'
-    if (contentType.includes('svg')) return null // edits needs a raster image
-    const logoBuf = Buffer.from(await logoRes.arrayBuffer())
     const form = new FormData()
     form.append('model', 'gpt-image-1')
-    form.append('image', new Blob([logoBuf], { type: contentType }), 'logo.png')
-    form.append('prompt', `${prompt}\n\nBRAND LOGO: a brand logo image is provided as input — place THIS EXACT provided logo prominently and crisply (e.g. a clean top corner), rendered unaltered. Do NOT invent or redraw a different logo.`.slice(0, 4000))
+    let added = 0
+    for (const url of assetUrls) {
+      try {
+        const r = await fetch(url)
+        if (!r.ok) continue
+        const ct = r.headers.get('content-type') || 'image/png'
+        if (ct.includes('svg')) continue // edits needs raster images
+        const buf = Buffer.from(await r.arrayBuffer())
+        form.append('image[]', new Blob([buf], { type: ct }), `asset-${added}.png`)
+        added++
+      } catch { /* skip this asset */ }
+    }
+    if (!added) return null
+    form.append('prompt', prompt.slice(0, 4000))
     form.append('size', size)
     form.append('quality', 'high')
     form.append('n', '1')
