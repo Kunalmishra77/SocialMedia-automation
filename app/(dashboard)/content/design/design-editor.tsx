@@ -49,15 +49,17 @@ export function DesignEditor() {
   const [saved, setSaved] = useState<string | null>(null)
 
   useEffect(() => {
-    let disposed = false
+    let cancelled = false
+    let canvas: any = null
     ;(async () => {
       const fabric = await import('fabric')
-      if (disposed || !elRef.current) return
+      if (cancelled || !elRef.current) return
       const style = document.createElement('style')
       style.textContent = `@font-face{font-family:'AntonEd';src:url('/fonts/Anton-Regular.ttf') format('truetype');}@font-face{font-family:'InterEd';src:url('/fonts/Inter-var.ttf') format('truetype');font-weight:100 900;}`
       document.head.appendChild(style)
       try { await Promise.all([(document as any).fonts.load('40px AntonEd'), (document as any).fonts.load('600 18px InterEd')]) } catch { /* ignore */ }
-      const canvas = new fabric.Canvas(elRef.current, { width: W, height: H, backgroundColor: '#ffffff', preserveObjectStacking: true })
+      if (cancelled || !elRef.current) return
+      canvas = new fabric.Canvas(elRef.current, { width: W, height: H, backgroundColor: '#ffffff', preserveObjectStacking: true })
       fabRef.current = fabric; canvasRef.current = canvas
       const onSel = () => {
         const o: any = canvas.getActiveObject()
@@ -70,19 +72,30 @@ export function DesignEditor() {
       canvas.on('selection:cleared', () => setSel({ kind: null }))
       setReady(true)
     })()
-    return () => { disposed = true; canvasRef.current?.dispose?.() }
+    return () => {
+      cancelled = true
+      if (canvas) { canvasRef.current = null; try { canvas.dispose() } catch { /* ignore */ } }
+    }
   }, [])
 
+  /** The canvas is only usable while its 2D context exists (not disposed). */
+  const liveCanvas = () => {
+    const c = canvasRef.current
+    return c && (c as any).contextContainer ? c : null
+  }
+
   async function render(tpl: TemplateKey) {
-    const fabric = fabRef.current, canvas = canvasRef.current, p = payloadRef.current
+    const fabric = fabRef.current, canvas = liveCanvas(), p = payloadRef.current
     if (!fabric || !canvas || !p) return
-    canvas.clear(); canvas.backgroundColor = '#ffffff'
-    const c = colorsOf(p)
-    if (tpl === 'hero') await buildHero(fabric, canvas, p, c)
-    else if (tpl === 'split') await buildSplit(fabric, canvas, p, c)
-    else if (tpl === 'cards') await buildCards(fabric, canvas, p, c)
-    else await buildReceipt(fabric, canvas, p, c)
-    canvas.renderAll()
+    try {
+      canvas.clear(); canvas.backgroundColor = '#ffffff'
+      const c = colorsOf(p)
+      if (tpl === 'hero') await buildHero(fabric, canvas, p, c)
+      else if (tpl === 'split') await buildSplit(fabric, canvas, p, c)
+      else if (tpl === 'cards') await buildCards(fabric, canvas, p, c)
+      else await buildReceipt(fabric, canvas, p, c)
+      if (liveCanvas()) canvas.renderAll()
+    } catch (e) { console.warn('design render skipped', e) }
   }
 
   async function generate(text?: string) {
@@ -104,19 +117,20 @@ export function DesignEditor() {
   }
 
   function apply(fn: (o: any) => void) {
-    const c = canvasRef.current; const o = c?.getActiveObject(); if (!o) return
+    const c = liveCanvas(); const o = c?.getActiveObject(); if (!c || !o) return
     fn(o); c.renderAll()
     if (String(o.type).includes('text')) setSel((s) => ({ ...s, fontSize: Math.round(o.fontSize) }))
   }
   const addText = () => {
-    const fabric = fabRef.current, c = canvasRef.current; if (!fabric || !c) return
+    const fabric = fabRef.current, c = liveCanvas(); if (!fabric || !c) return
     const t = new fabric.Textbox('Your text', { left: 60, top: 120, width: 300, fontFamily: 'InterEd', fontSize: 22, fill: NAVY })
     c.add(t); c.setActiveObject(t); c.renderAll()
   }
-  const del = () => { const c = canvasRef.current, o = c?.getActiveObject(); if (o) { c.remove(o); c.discardActiveObject(); c.renderAll(); setSel({ kind: null }) } }
+  const del = () => { const c = liveCanvas(), o = c?.getActiveObject(); if (c && o) { c.remove(o); c.discardActiveObject(); c.renderAll(); setSel({ kind: null }) } }
   async function uploadImg(file: File) {
-    const fabric = fabRef.current, c = canvasRef.current; if (!fabric || !c) return
+    const fabric = fabRef.current, c = liveCanvas(); if (!fabric || !c) return
     const img = await fabric.FabricImage.fromURL(URL.createObjectURL(file), { crossOrigin: 'anonymous' })
+    if (!liveCanvas()) return
     const s = Math.min(300 / img.width, 300 / img.height); img.set({ left: 120, top: 320, scaleX: s, scaleY: s })
     c.add(img); c.setActiveObject(img); c.renderAll()
   }
@@ -130,7 +144,7 @@ export function DesignEditor() {
     await render(template)
   }
   async function save(schedule: boolean) {
-    const c = canvasRef.current; if (!c || saving) return
+    const c = liveCanvas(); if (!c || saving) return
     if (schedule && !when) { setErr('Pick a date & time to schedule.'); return }
     setSaving(true); setErr(null)
     c.discardActiveObject(); c.renderAll()
