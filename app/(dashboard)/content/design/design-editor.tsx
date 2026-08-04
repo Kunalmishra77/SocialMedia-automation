@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Wand2, Loader2, Type, Trash2, Upload, CalendarClock, Check, ImageIcon } from 'lucide-react'
+import { Wand2, Loader2, Type, Trash2, Upload, CalendarClock, Check, ImageIcon, Undo2, Copy, ArrowUpToLine, ArrowDownToLine, AlignLeft, AlignCenter, AlignRight } from 'lucide-react'
 import { generateDesignAction, regenerateHeroAction, saveDesignAction, type DesignPayload } from '@/lib/actions/content'
 import { Button } from '@/components/ui/button'
 
@@ -41,7 +41,7 @@ export function DesignEditor() {
   const [err, setErr] = useState<string | null>(null)
   const [hasDesign, setHasDesign] = useState(false)
   const [template, setTemplate] = useState<TemplateKey>('hero')
-  const [sel, setSel] = useState<{ kind: 'text' | 'other' | null; fontSize?: number }>({ kind: null })
+  const [sel, setSel] = useState<{ kind: 'text' | 'other' | null; fontSize?: number; opacity?: number }>({ kind: null })
 
   const [caption, setCaption] = useState('')
   const [hashtags, setHashtags] = useState('')
@@ -66,11 +66,14 @@ export function DesignEditor() {
         const o: any = canvas.getActiveObject()
         if (!o) return setSel({ kind: null })
         const isText = String(o.type).includes('text')
-        setSel({ kind: isText ? 'text' : 'other', fontSize: isText ? Math.round(o.fontSize) : undefined })
+        setSel({ kind: isText ? 'text' : 'other', fontSize: isText ? Math.round(o.fontSize) : undefined, opacity: o.opacity ?? 1 })
       }
       canvas.on('selection:created', onSel)
       canvas.on('selection:updated', onSel)
       canvas.on('selection:cleared', () => setSel({ kind: null }))
+      canvas.on('object:modified', () => snapshot())
+      canvas.on('object:added', () => snapshot())
+      canvas.on('object:removed', () => snapshot())
       setReady(true)
     })()
     return () => {
@@ -88,6 +91,7 @@ export function DesignEditor() {
   async function render(tpl: TemplateKey) {
     const fabric = fabRef.current, canvas = liveCanvas(), p = payloadRef.current
     if (!fabric || !canvas || !p) return
+    suspendRef.current = true
     try {
       canvas.clear(); canvas.backgroundColor = '#ffffff'
       const c = colorsOf(p)
@@ -97,8 +101,31 @@ export function DesignEditor() {
       else if (tpl === 'cards') await buildCards(fabric, canvas, p, c)
       else await buildReceipt(fabric, canvas, p, c)
       if (liveCanvas()) canvas.renderAll()
-    } catch (e) { console.warn('design render skipped', e) }
+    } catch (e) { console.warn('design render skipped', e) } finally { suspendRef.current = false }
+    snapshot()
   }
+
+  const historyRef = useRef<string[]>([])
+  const suspendRef = useRef(false)
+  function snapshot() {
+    const c = liveCanvas(); if (!c || suspendRef.current) return
+    try { historyRef.current.push(JSON.stringify(c.toJSON())); if (historyRef.current.length > 40) historyRef.current.shift() } catch { /* ignore */ }
+  }
+  async function undo() {
+    const c = liveCanvas(); if (!c || historyRef.current.length < 2) return
+    historyRef.current.pop()
+    const prev = historyRef.current[historyRef.current.length - 1]
+    suspendRef.current = true
+    try { await c.loadFromJSON(JSON.parse(prev)); c.renderAll() } catch { /* ignore */ } finally { suspendRef.current = false }
+    setSel({ kind: null })
+  }
+  async function duplicate() {
+    const c = liveCanvas(), o = c?.getActiveObject(); if (!c || !o) return
+    try { const cl = await o.clone(); cl.set({ left: (o.left ?? 0) + 18, top: (o.top ?? 0) + 18 }); c.add(cl); c.setActiveObject(cl); c.renderAll() } catch { /* ignore */ }
+  }
+  const layer = (dir: 'front' | 'back') => { const c = liveCanvas(), o = c?.getActiveObject(); if (!c || !o) return; dir === 'front' ? c.bringObjectToFront(o) : c.sendObjectToBack(o); c.renderAll() }
+  const alignX = (mode: 'l' | 'c' | 'r') => apply((o) => { const w = o.getScaledWidth?.() ?? o.width ?? 0; o.set('left', mode === 'l' ? 24 : mode === 'c' ? (W - w) / 2 : W - w - 24) })
+  const setOpacity = (v: number) => { apply((o) => o.set('opacity', v)); setSel((s) => ({ ...s, opacity: v })) }
 
   async function generate(text?: string) {
     const b = (text ?? brief).trim()
@@ -110,6 +137,8 @@ export function DesignEditor() {
     const pay = res.payload
     payloadRef.current = pay
     setCaption(`${pay.design.headline}\n\n${pay.design.subtext}`)
+    setHashtags((pay.design.hashtags ?? []).map((h) => `#${h}`).join(' '))
+    historyRef.current = []
     // AI Art Director picks the best layout for this content.
     const picked = (TEMPLATES.find((t) => t.key === pay.design.layout)?.key ?? 'hero') as TemplateKey
     setTemplate(picked)
@@ -176,13 +205,27 @@ export function DesignEditor() {
         </div>
         {hasDesign && (
           <div className="flex flex-wrap gap-1.5">
+            <Button size="sm" variant="outline" onClick={undo} disabled={historyRef.current.length < 2}><Undo2 className="h-4 w-4" /> Undo</Button>
             <Button size="sm" variant="outline" onClick={addText}><Type className="h-4 w-4" /> Text</Button>
             <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-input bg-card px-3 py-1.5 text-sm hover:bg-muted">
               <Upload className="h-4 w-4" /> Image
               <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && uploadImg(e.target.files[0])} />
             </label>
             <Button size="sm" variant="outline" onClick={regenHero} disabled={regen}>{regen ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />} New photo</Button>
-            {sel.kind && <Button size="sm" variant="ghost" className="text-destructive" onClick={del}><Trash2 className="h-4 w-4" /></Button>}
+          </div>
+        )}
+        {sel.kind && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-2 text-sm">
+            <button onClick={duplicate} className="rounded border px-2 py-1" title="Duplicate"><Copy className="h-3.5 w-3.5" /></button>
+            <button onClick={() => layer('front')} className="rounded border px-2 py-1" title="Bring to front"><ArrowUpToLine className="h-3.5 w-3.5" /></button>
+            <button onClick={() => layer('back')} className="rounded border px-2 py-1" title="Send to back"><ArrowDownToLine className="h-3.5 w-3.5" /></button>
+            <button onClick={() => alignX('l')} className="rounded border px-2 py-1" title="Align left"><AlignLeft className="h-3.5 w-3.5" /></button>
+            <button onClick={() => alignX('c')} className="rounded border px-2 py-1" title="Align center"><AlignCenter className="h-3.5 w-3.5" /></button>
+            <button onClick={() => alignX('r')} className="rounded border px-2 py-1" title="Align right"><AlignRight className="h-3.5 w-3.5" /></button>
+            <span className="mx-1 h-4 w-px bg-border" />
+            <span className="text-xs text-muted-foreground">Opacity</span>
+            <input type="range" min={20} max={100} value={Math.round((sel.opacity ?? 1) * 100)} onChange={(e) => setOpacity(Number(e.target.value) / 100)} className="w-20" />
+            <button onClick={del} className="rounded border px-2 py-1 text-destructive" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
           </div>
         )}
         {sel.kind === 'text' && (
@@ -239,6 +282,40 @@ export function DesignEditor() {
 // Template builders (fabric objects on a 540×675 canvas)
 // ─────────────────────────────────────────────────────────────
 
+// lucide-style line icons (inner SVG markup) — rendered in the brand accent.
+const ICONS: Record<string, string> = {
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  droplet: '<path d="M12 2s6 5.5 6 10a6 6 0 0 1-12 0c0-4.5 6-10 6-10z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6 19 19M19 5l-1.4 1.4M6.4 17.6 5 19"/>',
+  star: '<path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.2l1-5.8L3.5 9.2l5.9-.9z"/>',
+  heart: '<path d="M12 20s-7-4.3-9.2-8.5C1.3 8 3.2 4.5 6.5 4.5c2 0 3.5 1.3 5.5 3 2-1.7 3.5-3 5.5-3 3.3 0 5.2 3.5 3.7 7C19 15.7 12 20 12 20z"/>',
+  shield: '<path d="M12 2l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V5z"/>',
+  sparkles: '<path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7z"/><path d="M19 14l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+  'trending-up': '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/>',
+  zap: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  leaf: '<path d="M4 20c8 0 16-5 16-15 0 0-13-2-16 7-1.5 4.5 0 8 0 8z"/><path d="M4 20c3-6 7-9 12-11"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+  users: '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20c0-3.3 3-5.5 5.5-5.5s5.5 2.2 5.5 5.5"/><path d="M16 5.2A3 3 0 0 1 16 11M21 20c0-2.5-1.5-4.3-3.5-5"/>',
+  message: '<path d="M20 15a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/>',
+  gift: '<path d="M20 12v8H4v-8"/><path d="M2 8h20v4H2z"/><path d="M12 8v12"/><path d="M12 8S11 3 8.5 3 6 6 8.5 8M12 8s1-5 3.5-5S18 6 15.5 8"/>',
+  camera: '<rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3.5"/><path d="M8 7l1.5-2.5h5L16 7"/>',
+  award: '<circle cx="12" cy="9" r="5"/><path d="M9 13l-1 8 4-2.5 4 2.5-1-8"/>',
+  dollar: '<path d="M12 2v20"/><path d="M17 6.5C17 4.5 14.8 4 12 4S7 5 7 7.5 9 11 12 11s5 1 5 3.5S14.5 20 12 20s-5-.5-5-2.5"/>',
+  smile: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/>',
+  book: '<path d="M4 4h11a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2z"/><path d="M17 4h3v16h-3"/>',
+}
+async function iconImage(fabric: any, name: string, color: string, size: number) {
+  const inner = ICONS[name] || ICONS.sparkles
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`
+  return fabric.FabricImage.fromURL('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg))
+}
+function hexA(hex: string, a: number): string {
+  const m = hex.replace('#', ''); const n = m.length === 3 ? m.split('').map((x) => x + x).join('') : m
+  const r = parseInt(n.slice(0, 2), 16) || 0, g = parseInt(n.slice(2, 4), 16) || 0, b = parseInt(n.slice(4, 6), 16) || 0
+  return `rgba(${r},${g},${b},${a})`
+}
+
 function addBadge(fabric: any, canvas: any, text: string, accent: string, left = 24, top = 28) {
   const badge = new fabric.IText((text || 'YOUR BRAND').toUpperCase(), { left: left + 16, top: top + 6, fontFamily: 'InterEd', fontSize: 12, fontWeight: '700', charSpacing: 60, fill: accent })
   const pill = new fabric.Rect({ left, top, width: (badge.width ?? 120) + 32, height: 28, rx: 14, ry: 14, fill: 'rgba(0,0,0,0)', stroke: accent, strokeWidth: 1.5 })
@@ -272,9 +349,10 @@ async function addHeroBand(fabric: any, canvas: any, url: string | null, left: n
 }
 
 function footerText(p: DesignPayload) {
-  const site = p.brand.website || `www.${(p.brand.name || 'yourbrand').toLowerCase().replace(/\s+/g, '')}.com`
-  const phone = p.brand.phone || '+91 00000 00000'
-  return `${site}    |    ${phone}`
+  const parts = [p.brand.website || `www.${(p.brand.name || 'yourbrand').toLowerCase().replace(/\s+/g, '')}.com`]
+  if (p.brand.phone) parts.push(p.brand.phone)
+  if (p.brand.handle) parts.push(p.brand.handle)
+  return parts.join('     |     ')
 }
 function addFooter(fabric: any, canvas: any, accent: string, p: DesignPayload) {
   canvas.add(new fabric.Rect({ left: 0, top: H - 56, width: W, height: 56, fill: accent }))
@@ -285,7 +363,7 @@ async function addLogo(fabric: any, canvas: any, url: string, right = true) {
   if (!url) return
   try {
     const logo = await fabric.FabricImage.fromURL(url, { crossOrigin: 'anonymous' })
-    const lh = 40, s = lh / logo.height
+    const s = Math.min(38 / logo.height, 130 / logo.width) // cap height AND width
     logo.set({ left: right ? W - logo.width * s - 28 : 28, top: 30, scaleX: s, scaleY: s })
     canvas.add(logo)
   } catch { /* skip */ }
@@ -309,7 +387,9 @@ async function buildBullets(fabric: any, canvas: any, p: DesignPayload, c: Color
   let by = Math.min(y, 380) + 8
   for (const b of bullets) {
     canvas.add(new fabric.Circle({ left: 44, top: by, radius: 12, fill: c.accent }))
-    canvas.add(new fabric.IText('✓', { left: 49, top: by, fontFamily: 'InterEd', fontSize: 15, fontWeight: '700', fill: '#ffffff' }))
+    const chk = await iconImage(fabric, 'check', '#ffffff', 15)
+    chk.set({ left: 48.5, top: by + 4.5 })
+    canvas.add(chk)
     canvas.add(new fabric.Textbox(b, { left: 76, top: by + 1, width: 170, fontFamily: 'InterEd', fontSize: 15, fontWeight: '600', fill: NAVY }))
     by += 44
   }
@@ -341,18 +421,27 @@ async function buildSplit(fabric: any, canvas: any, p: DesignPayload, c: Colors)
 
 async function buildCards(fabric: any, canvas: any, p: DesignPayload, c: Colors) {
   await addHeroBand(fabric, canvas, p.heroUrl, 0, 0, W, H)
-  canvas.add(new fabric.Rect({ left: 0, top: 0, width: W, height: H, fill: 'rgba(255,255,255,0.74)' }))
+  // gradient white overlay — opaque up top (readable header) fading down
+  const ov = new fabric.Rect({ left: 0, top: 0, width: W, height: H })
+  ov.set('fill', new fabric.Gradient({
+    type: 'linear', coords: { x1: 0, y1: 0, x2: 0, y2: H },
+    colorStops: [{ offset: 0, color: 'rgba(255,255,255,0.97)' }, { offset: 0.4, color: 'rgba(255,255,255,0.85)' }, { offset: 1, color: 'rgba(255,255,255,0.72)' }],
+  }))
+  canvas.add(ov)
   addBadge(fabric, canvas, p.design.badge, c.accent)
   addTwoTone(fabric, canvas, p, c, 42, 92, 470, 34)
   const cards = p.design.cards.length ? p.design.cards : ['ITEM ONE', 'ITEM TWO', 'ITEM THREE', 'ITEM FOUR']
+  const icons = p.design.icons ?? []
   const pos = [[28, 300], [280, 300], [28, 452], [280, 452]]
-  cards.slice(0, 4).forEach((label, i) => {
+  for (let i = 0; i < cards.length && i < 4; i++) {
     const [cx, cy] = pos[i]
-    canvas.add(new fabric.Rect({ left: cx, top: cy, width: 232, height: 138, rx: 18, ry: 18, fill: '#ffffff', stroke: '#eef1f5', strokeWidth: 1, shadow: new fabric.Shadow({ color: 'rgba(22,35,58,0.12)', blur: 16, offsetY: 6 }) }))
-    canvas.add(new fabric.Circle({ left: cx + 116 - 22, top: cy + 18, radius: 22, fill: c.accent2 }))
-    canvas.add(new fabric.Circle({ left: cx + 116 - 9, top: cy + 31, radius: 9, fill: c.accent }))
-    canvas.add(new fabric.Textbox(label, { left: cx + 16, top: cy + 78, width: 200, fontFamily: 'InterEd', fontSize: 15, fontWeight: '700', textAlign: 'center', fill: NAVY }))
-  })
+    canvas.add(new fabric.Rect({ left: cx, top: cy, width: 232, height: 138, rx: 18, ry: 18, fill: '#ffffff', stroke: '#eef1f5', strokeWidth: 1, shadow: new fabric.Shadow({ color: 'rgba(22,35,58,0.14)', blur: 18, offsetY: 7 }) }))
+    canvas.add(new fabric.Circle({ left: cx + 116 - 25, top: cy + 20, radius: 25, fill: hexA(c.accent, 0.12) }))
+    const ic = await iconImage(fabric, icons[i] || 'star', c.accent, 28)
+    ic.set({ left: cx + 116 - 14, top: cy + 31 })
+    canvas.add(ic)
+    canvas.add(new fabric.Textbox(cards[i], { left: cx + 16, top: cy + 82, width: 200, fontFamily: 'InterEd', fontSize: 15, fontWeight: '700', textAlign: 'center', fill: NAVY }))
+  }
   addFooter(fabric, canvas, c.accent, p)
   await addLogo(fabric, canvas, p.brand.logo)
 }

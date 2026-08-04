@@ -139,12 +139,16 @@ export interface PostDesign {
   headlineAccent: string // the portion of the headline to highlight in the accent colour
   subtext: string        // one supporting line
   cards: string[]        // 4 short 2-4 word labels (for card/list templates)
+  icons: string[]        // 4 icon names (one per card) from ICON_NAMES
+  hashtags: string[]     // relevant hashtags for the caption
   cta: string            // short call-to-action / closing line
   heroPrompt: string     // detailed prompt for a photorealistic hero image (no text)
   layout: string         // AI-chosen layout: hero | bullets | split | cards | receipt
 }
 
 const LAYOUTS = ['hero', 'bullets', 'split', 'cards', 'receipt']
+/** Icon vocabulary the editor can render (kept in sync with design-editor ICONS). */
+export const ICON_NAMES = ['check', 'droplet', 'sun', 'star', 'heart', 'shield', 'sparkles', 'trending-up', 'clock', 'zap', 'leaf', 'target', 'users', 'message', 'gift', 'camera', 'award', 'dollar', 'smile', 'book']
 
 /** Generate designed-post content (badge + two-tone headline + subtext + hero prompt). */
 export async function generateDesign(opts: { brand: BrandProfile; brief: string; kbContext?: string }): Promise<PostDesign | null> {
@@ -163,6 +167,8 @@ export async function generateDesign(opts: { brand: BrandProfile; brief: string;
     '  "headlineAccent": "the exact substring of headline to highlight in the accent colour (a key phrase)",',
     '  "subtext": "one supporting sentence, sentence case, under 14 words",',
     '  "cards": ["4 short 2-4 word labels that support the topic (e.g. tasks, tips, benefits) — ALL CAPS"],',
+    `  "icons": ["4 icon names, one matching each card, chosen ONLY from: ${ICON_NAMES.join(', ')}"],`,
+    '  "hashtags": ["8-12 relevant hashtags for this post, no # prefix"],',
     '  "cta": "a short closing line or call-to-action, under 12 words",',
     `  "layout": "choose the BEST layout for THIS content — one of: ${LAYOUTS.join(', ')}. Use 'bullets' for a value/benefit list with a CTA, 'cards' for 4 parallel items/tips, 'receipt' for a cost/statement/list framed as a card, 'split' for one strong statement with a framed photo, 'hero' for a bold single message with a full photo.",`,
     `  "heroPrompt": "a detailed prompt for a hero image in the brand's imagery style (${opts.brand.imagery_style || 'real photo'}) relevant to the topic — describe subject, setting, lighting, mood, composition; professional, high quality; NO text, NO words, NO logos in the image"`,
@@ -172,18 +178,34 @@ export async function generateDesign(opts: { brand: BrandProfile; brief: string;
   if (!raw) return null
   const p = extractJson(raw) as Partial<PostDesign> | null
   if (!p?.headline) return null
-  const cards = Array.isArray(p.cards) ? p.cards.map((c) => String(c).toUpperCase().slice(0, 30)).filter(Boolean).slice(0, 4) : []
+  const cards = Array.isArray(p.cards) ? p.cards.map((c) => noEmoji(String(c)).toUpperCase().slice(0, 30)).filter(Boolean).slice(0, 4) : []
+  const fallbackIcons = ['sparkles', 'star', 'check', 'heart']
+  const icons = Array.from({ length: 4 }, (_, i) => {
+    const v = Array.isArray(p.icons) ? String(p.icons[i] ?? '').toLowerCase().trim() : ''
+    return ICON_NAMES.includes(v) ? v : fallbackIcons[i]
+  })
+  const hashtags = Array.isArray(p.hashtags) ? p.hashtags.map((h) => String(h).replace(/^#/, '').trim()).filter(Boolean).slice(0, 15) : []
   const layout = LAYOUTS.includes(String(p.layout)) ? String(p.layout) : 'hero'
   return {
-    badge: String(p.badge ?? '').toUpperCase().slice(0, 40),
-    headline: String(p.headline ?? '').toUpperCase().slice(0, 120),
-    headlineAccent: String(p.headlineAccent ?? '').toUpperCase().slice(0, 80),
-    subtext: String(p.subtext ?? '').slice(0, 160),
+    icons,
+    hashtags,
+    badge: noEmoji(String(p.badge ?? '')).toUpperCase().slice(0, 40),
+    headline: noEmoji(String(p.headline ?? '')).toUpperCase().slice(0, 120),
+    headlineAccent: noEmoji(String(p.headlineAccent ?? '')).toUpperCase().slice(0, 80),
+    subtext: noEmoji(String(p.subtext ?? '')).slice(0, 160),
     cards,
-    cta: String(p.cta ?? '').slice(0, 120),
+    cta: noEmoji(String(p.cta ?? '')).slice(0, 120),
     heroPrompt: String(p.heroPrompt ?? opts.brief).slice(0, 1000),
     layout,
   }
+}
+
+/** Strip emoji/pictographs — the display fonts (Anton/Inter) can't render them. */
+function noEmoji(s: string): string {
+  return s
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E6}-\u{1F1FF}]/gu, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
 }
 
 /**
