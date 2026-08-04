@@ -13,6 +13,7 @@ const EXAMPLES = ['Manual work isn’t free', '5 skincare tips for glowing skin'
 const SWATCHES = [NAVY, ACCENT, '#ffffff', GRAY, '#000000', '#10b981']
 const TEMPLATES = [
   { key: 'hero', label: 'Hero + photo' },
+  { key: 'bullets', label: 'Bullets + CTA' },
   { key: 'split', label: 'Split' },
   { key: 'cards', label: 'Icon cards' },
   { key: 'receipt', label: 'Statement' },
@@ -91,6 +92,7 @@ export function DesignEditor() {
       canvas.clear(); canvas.backgroundColor = '#ffffff'
       const c = colorsOf(p)
       if (tpl === 'hero') await buildHero(fabric, canvas, p, c)
+      else if (tpl === 'bullets') await buildBullets(fabric, canvas, p, c)
       else if (tpl === 'split') await buildSplit(fabric, canvas, p, c)
       else if (tpl === 'cards') await buildCards(fabric, canvas, p, c)
       else await buildReceipt(fabric, canvas, p, c)
@@ -287,6 +289,25 @@ async function buildHero(fabric: any, canvas: any, p: DesignPayload, c: Colors) 
   await addHeroBand(fabric, canvas, p.heroUrl, 0, 300, W, 315)
   addFooter(fabric, canvas, c.accent, p.brand.name)
   await addLogo(fabric, canvas, p.brand.logo)
+}
+
+async function buildBullets(fabric: any, canvas: any, p: DesignPayload, c: Colors) {
+  // hero photo on the right band
+  await addHeroBand(fabric, canvas, p.heroUrl, 258, 0, W - 258, H - 56)
+  await addLogo(fabric, canvas, p.brand.logo, false)
+  const y = addTwoTone(fabric, canvas, p, c, 44, 96, 200, 30)
+  const bullets = (p.design.cards.length ? p.design.cards : ['CAPTURE EVERY LEAD', 'RESPOND INSTANTLY', 'SCALE WITHOUT HIRING']).slice(0, 3)
+  let by = Math.min(y, 380) + 8
+  for (const b of bullets) {
+    canvas.add(new fabric.Circle({ left: 44, top: by, radius: 12, fill: c.accent }))
+    canvas.add(new fabric.IText('✓', { left: 49, top: by, fontFamily: 'InterEd', fontSize: 15, fontWeight: '700', fill: '#ffffff' }))
+    canvas.add(new fabric.Textbox(b, { left: 76, top: by + 1, width: 170, fontFamily: 'InterEd', fontSize: 15, fontWeight: '600', fill: NAVY }))
+    by += 44
+  }
+  const cta = new fabric.IText(`  ${p.design.cta || 'Book Your Demo Today'}   →  `, { left: 58, top: by + 26, fontFamily: 'InterEd', fontSize: 14, fontWeight: '700', fill: '#ffffff' })
+  canvas.add(new fabric.Rect({ left: 44, top: by + 18, width: (cta.width ?? 180) + 24, height: 42, rx: 21, ry: 21, fill: c.accent }))
+  canvas.add(cta)
+  addFooter(fabric, canvas, c.accent, p.brand.name)
 }
 
 async function buildSplit(fabric: any, canvas: any, p: DesignPayload, c: Colors) {
