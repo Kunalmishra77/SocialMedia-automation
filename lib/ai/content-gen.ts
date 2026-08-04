@@ -235,6 +235,91 @@ export async function suggestTopic(opts: {
   return out ? out.trim().replace(/^["'\-\d.\s]+/, '').slice(0, 160) : null
 }
 
+/**
+ * AI prompt architect: turn a short topic + the brand kit into a long, detailed
+ * gpt-image-1 prompt that renders a complete premium branded poster (text baked
+ * in), plus a matching caption + hashtags. This replaces the manual prompt-
+ * writing users otherwise do in ChatGPT/Gamma.
+ */
+interface PosterSpec {
+  concept: string
+  headline: string
+  subheadline: string
+  benefits: { title: string; desc: string; icon: string }[]
+  subject: string
+  products: string
+  caption: string
+  hashtags: string[]
+}
+
+export async function expandPoster(opts: { brand: BrandProfile; brief: string; kbContext?: string }): Promise<{ imagePrompt: string; caption: string; hashtags: string[]; spec: PosterSpec } | null> {
+  if (!aiConfigured()) return null
+  const b = opts.brand
+  const system = 'You are a world-class advertising art director planning a PREMIUM, photorealistic branded Instagram poster. You output a precise, structured content spec. Keep on-image words minimal and impactful. Never invent facts, prices or claims not provided.'
+  const brandBlock = [
+    `Brand name (spell EXACTLY): "${b.business_name}"`,
+    b.industry && `Industry: ${b.industry}`,
+    b.target_audience && `Audience: ${b.target_audience}`,
+    b.products && `Products / services: ${b.products}`,
+    b.brand_colors.length ? `Color palette: ${b.brand_colors.join(', ')}` : '',
+    `Theme: ${b.theme}. Imagery style: ${b.imagery_style}.`,
+  ].filter(Boolean).join('\n')
+  const user = [
+    `Plan a vertical 4:5 poster about: "${opts.brief}".`,
+    'BRAND:', brandBlock,
+    opts.kbContext ? `\nFACTS (use, never contradict):\n${opts.kbContext}` : '',
+    '',
+    'Return ONLY JSON:',
+    '{',
+    '  "concept": "1-2 sentences: the composition idea and mood (e.g. clean split layout, subject right, message left)",',
+    '  "headline": "the main headline to render on the image — short, punchy, correctly spelled",',
+    '  "subheadline": "one supporting line",',
+    '  "benefits": [{"title": "SHORT BENEFIT", "desc": "2-5 word detail", "icon": "simple icon idea e.g. water droplet, shield, sparkle"}],',
+    '  "subject": "detailed description of the main photorealistic subject/scene relevant to the topic and brand imagery style",',
+    '  "products": "description of a tasteful product display if (and only if) the brand sells physical products, else empty string",',
+    '  "caption": "engaging Instagram caption, 2-4 short lines",',
+    '  "hashtags": ["8-12 relevant hashtags, no # prefix"]',
+    '}',
+    'Provide 3-4 benefits.',
+  ].filter(Boolean).join('\n')
+  const raw = await callAI([{ role: 'system', content: system }, { role: 'user', content: user }], { maxTokens: 1200, temperature: 0.8 })
+  if (!raw) return null
+  const p = extractJson(raw) as Partial<PosterSpec> | null
+  if (!p?.headline) return null
+  const spec: PosterSpec = {
+    concept: String(p.concept ?? '').slice(0, 300),
+    headline: String(p.headline ?? '').slice(0, 80),
+    subheadline: String(p.subheadline ?? '').slice(0, 120),
+    benefits: Array.isArray(p.benefits) ? p.benefits.slice(0, 4).map((x) => ({ title: String(x?.title ?? '').slice(0, 40), desc: String(x?.desc ?? '').slice(0, 60), icon: String(x?.icon ?? '').slice(0, 40) })) : [],
+    subject: String(p.subject ?? '').slice(0, 600),
+    products: String(p.products ?? '').slice(0, 400),
+    caption: String(p.caption ?? opts.brief).slice(0, 600),
+    hashtags: Array.isArray(p.hashtags) ? p.hashtags.map((h) => String(h).replace(/^#/, '').trim()).filter(Boolean).slice(0, 15) : [],
+  }
+  return { imagePrompt: buildPosterPrompt(b, spec), caption: spec.caption, hashtags: spec.hashtags, spec }
+}
+
+/** Assemble a complete gpt-image-1 prompt from the spec + fixed FOLLOW / AVOID rules. */
+function buildPosterPrompt(b: BrandProfile, s: PosterSpec): string {
+  const palette = b.brand_colors.length ? b.brand_colors.join(', ') : 'an elegant, tasteful palette'
+  const footer = [b.website, b.phone].filter(Boolean).join('   and   ') || 'the brand website'
+  const benefits = s.benefits.map((x, i) => `${i + 1}. Icon: ${x.icon || 'simple line icon'} — "${x.title}"${x.desc ? ` (${x.desc})` : ''}`).join('\n')
+  return [
+    'FORMAT: A vertical 4:5 portrait Instagram advertisement poster, premium editorial commercial design, ultra-clean and uncluttered, bright and airy.',
+    `BRAND: Prominently feature the brand name "${b.business_name}" spelled EXACTLY. Use ONLY this color palette: ${palette}. Visual theme: ${b.theme}. Imagery style: ${b.imagery_style}.`,
+    `COMPOSITION: ${s.concept || 'A sophisticated, balanced split composition with generous whitespace.'}`,
+    `HEADLINE (render this text sharply and correctly): "${s.headline}"${s.subheadline ? `, with the supporting line "${s.subheadline}".` : '.'} Use a clear bold typography hierarchy.`,
+    benefits && `FEATURE POINTS (each a minimal line icon + bold short label, correctly spelled):\n${benefits}`,
+    `MAIN SUBJECT: ${s.subject}. Photorealistic, professional studio lighting, natural realistic texture, sharp focus.`,
+    s.products && `PRODUCTS: ${s.products}. Realistic, premium packaging with the brand name; all products fully visible, none cropped or duplicated.`,
+    `FOOTER: a full-width horizontal footer strip along the bottom edge in the brand accent color, showing ${footer} in clean bold WHITE sans-serif text, clearly readable.`,
+    'TYPOGRAPHY: professional hierarchy — heavy modern sans-serif for headings, refined accents; perfect alignment and spacing.',
+    'TEXT ACCURACY: every visible word must be sharp, legible and spelled exactly as given; do not add extra words.',
+    'QUALITY: photorealistic, high-end commercial advertising, luxury editorial art direction, soft natural shadows, professional color grading.',
+    'STRICTLY AVOID: watermarks, random or extra logos, extra unrequested text, misspelled or blurry or illegible text, deformed hands or fingers, duplicate or cropped products, cluttered layout, dark or harsh backgrounds, low-quality artifacts.',
+  ].filter(Boolean).join('\n\n')
+}
+
 /** Regenerate copy for a single platform (used by "regenerate caption"). */
 export async function regeneratePlatform(opts: {
   brand: BrandProfile

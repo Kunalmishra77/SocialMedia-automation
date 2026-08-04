@@ -63,6 +63,15 @@ export async function generateHeroImage(
   return callGptImage(admin, workspaceId, styled, 'high', size)
 }
 
+/**
+ * Full AI poster — gpt-image-1 renders the complete branded poster (text + subject
+ * + products) from a detailed prompt. High quality, portrait. Returns URL or null.
+ */
+export async function generatePoster(admin: Admin, workspaceId: string, prompt: string): Promise<string | null> {
+  if (!prompt) return null
+  return callGptImage(admin, workspaceId, prompt, 'high', '1024x1536')
+}
+
 /** Shared gpt-image-1 call → upload → public URL. */
 async function callGptImage(
   admin: Admin, workspaceId: string, prompt: string,
@@ -74,7 +83,7 @@ async function callGptImage(
     const res = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: 'gpt-image-1', prompt: prompt.slice(0, 3200), size, quality, n: 1 }),
+      body: JSON.stringify({ model: 'gpt-image-1', prompt: prompt.slice(0, 4000), size, quality, n: 1 }),
     })
     if (!res.ok) return null
     const data = await res.json()

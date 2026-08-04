@@ -6,8 +6,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership } from '@/lib/authz'
 import { callAI, aiConfigured } from '@/lib/ai/client'
 import { getBrandProfile } from '@/lib/ai/brand'
-import { generateContent, generateDesign, type PlatformVariants, type PostDesign } from '@/lib/ai/content-gen'
-import { generatePostImage, generateHeroImage } from '@/lib/ai/image-gen'
+import { generateContent, generateDesign, expandPoster, type PlatformVariants, type PostDesign } from '@/lib/ai/content-gen'
+import { generatePostImage, generateHeroImage, generatePoster } from '@/lib/ai/image-gen'
 import { retrieveKbContext } from '@/lib/ai/reply'
 
 /** IG feed post caption from the instagram variant (falls back to first variant). */
@@ -377,6 +377,56 @@ export async function regenerateHeroAction(prompt: string): Promise<{ url?: stri
   const brand = await getBrandProfile(admin, workspaceId)
   const url = await generateHeroImage(admin, workspaceId, prompt, brand, '1024x1024')
   return { url }
+}
+
+// ── AI Poster: full gpt-image-1 poster from topic + brand kit ──────────────
+
+export interface PosterResult { url: string; imagePrompt: string; caption: string; hashtags: string[] }
+
+/** Topic + brand kit → AI writes a detailed prompt → gpt-image-1 full poster. */
+export async function generatePosterAction(brief: string): Promise<{ poster?: PosterResult; error?: string }> {
+  const { workspaceId } = await ctx()
+  if (!aiConfigured()) return { error: 'Add an OpenAI key to generate posters.' }
+  const b = brief.trim()
+  if (!b) return { error: 'Enter a topic or brief.' }
+  const admin = createAdminClient()
+  const brand = await getBrandProfile(admin, workspaceId)
+  const kbContext = await retrieveKbContext(admin, workspaceId, b, false)
+  const ex = await expandPoster({ brand, brief: b, kbContext })
+  if (!ex) return { error: 'Could not build the poster — try rephrasing.' }
+  const url = await generatePoster(admin, workspaceId, ex.imagePrompt)
+  if (!url) return { error: 'Image generation failed. Ensure your OpenAI account has gpt-image-1 access (may need org verification), then retry.' }
+  return { poster: { url, imagePrompt: ex.imagePrompt, caption: ex.caption, hashtags: ex.hashtags } }
+}
+
+/** Regenerate the poster image from an existing prompt (a fresh variation). */
+export async function regeneratePosterAction(prompt: string): Promise<{ url?: string | null; error?: string }> {
+  const { workspaceId } = await ctx()
+  const admin = createAdminClient()
+  const url = await generatePoster(admin, workspaceId, prompt)
+  return { url }
+}
+
+/** Save an AI poster (already in storage) as a content post. */
+export async function savePosterAction(input: {
+  url: string; caption: string; hashtags?: string; brief?: string; scheduledAt?: string
+}): Promise<{ id?: string; error?: string }> {
+  const { user, workspaceId } = await ctx()
+  if (!input.url) return { error: 'No poster to save.' }
+  const admin = createAdminClient()
+  const hashtags = (input.hashtags ?? '').split(/[\s,]+/).map((h) => h.replace(/^#/, '')).filter(Boolean)
+  const scheduled = input.scheduledAt?.trim()
+  const { data, error } = await admin.from('content_posts').insert({
+    workspace_id: workspaceId, type: 'feed', brief: input.brief ?? null,
+    caption: input.caption ?? '', hashtags, media_urls: [input.url],
+    target_platforms: ['instagram'], image_source: 'ai_poster',
+    status: scheduled ? 'scheduled' : 'draft',
+    scheduled_at: scheduled ? new Date(scheduled).toISOString() : null,
+    ai_generated: true, created_by: user.id,
+  }).select('id').single()
+  if (error || !data) return { error: 'Could not save the poster.' }
+  revalidatePath('/content')
+  return { id: data.id }
 }
 
 /** Save the exported design PNG as a content post (draft or scheduled). */

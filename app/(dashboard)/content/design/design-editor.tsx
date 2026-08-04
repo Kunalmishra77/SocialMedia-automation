@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Wand2, Loader2, Type, Trash2, Upload, CalendarClock, Check, ImageIcon, Undo2, Copy, ArrowUpToLine, ArrowDownToLine, AlignLeft, AlignCenter, AlignRight } from 'lucide-react'
-import { generateDesignAction, regenerateHeroAction, saveDesignAction, type DesignPayload } from '@/lib/actions/content'
+import { generateDesignAction, regenerateHeroAction, saveDesignAction, generatePosterAction, regeneratePosterAction, savePosterAction, type DesignPayload } from '@/lib/actions/content'
 import { Button } from '@/components/ui/button'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -48,6 +48,12 @@ export function DesignEditor() {
   const [when, setWhen] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState<string | null>(null)
+
+  // AI Poster mode (full gpt-image-1 poster)
+  const [mode, setMode] = useState<'poster' | 'template'>('poster')
+  const [posterUrl, setPosterUrl] = useState<string | null>(null)
+  const [posterBusy, setPosterBusy] = useState(false)
+  const posterPromptRef = useRef<string>('')
 
   useEffect(() => {
     let cancelled = false
@@ -151,6 +157,27 @@ export function DesignEditor() {
     await render(tpl)
   }
 
+  async function genPoster(text?: string) {
+    const b = (text ?? brief).trim()
+    if (!b || posterBusy) return
+    setPosterBusy(true); setErr(null); setSaved(null)
+    const res = await generatePosterAction(b)
+    setPosterBusy(false)
+    if (res.error || !res.poster) { setErr(res.error ?? 'Failed'); return }
+    posterPromptRef.current = res.poster.imagePrompt
+    setPosterUrl(res.poster.url)
+    setCaption(res.poster.caption)
+    setHashtags(res.poster.hashtags.map((h) => `#${h}`).join(' '))
+    setHasDesign(true)
+  }
+  async function regenPoster() {
+    if (!posterPromptRef.current || posterBusy) return
+    setPosterBusy(true); setErr(null)
+    const res = await regeneratePosterAction(posterPromptRef.current)
+    setPosterBusy(false)
+    if (res.url) setPosterUrl(res.url)
+  }
+
   function apply(fn: (o: any) => void) {
     const c = liveCanvas(); const o = c?.getActiveObject(); if (!c || !o) return
     fn(o); c.renderAll()
@@ -179,31 +206,59 @@ export function DesignEditor() {
     await render(template)
   }
   async function save(schedule: boolean) {
-    const c = liveCanvas(); if (!c || saving) return
+    if (saving) return
     if (schedule && !when) { setErr('Pick a date & time to schedule.'); return }
     setSaving(true); setErr(null)
-    c.discardActiveObject(); c.renderAll()
-    const dataUrl = c.toDataURL({ format: 'png', multiplier: 2 })
-    const res = await saveDesignAction({ dataUrl, caption, hashtags, brief, scheduledAt: schedule ? new Date(when).toISOString() : undefined })
+    const scheduledAt = schedule ? new Date(when).toISOString() : undefined
+    let res: { id?: string; error?: string }
+    if (mode === 'poster') {
+      if (!posterUrl) { setSaving(false); setErr('Generate a poster first.'); return }
+      res = await savePosterAction({ url: posterUrl, caption, hashtags, brief, scheduledAt })
+    } else {
+      const c = liveCanvas(); if (!c) { setSaving(false); return }
+      c.discardActiveObject(); c.renderAll()
+      res = await saveDesignAction({ dataUrl: c.toDataURL({ format: 'png', multiplier: 2 }), caption, hashtags, brief, scheduledAt })
+    }
     setSaving(false)
     if (res.error) { setErr(res.error); return }
     setSaved(schedule ? 'Scheduled ✓ — it will auto-publish at the set time.' : 'Saved to Content as a draft ✓')
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,560px)_1fr]">
+    <div className="space-y-4">
+      <div className="flex w-fit gap-1 rounded-lg border border-border bg-muted/40 p-1 text-sm">
+        <button onClick={() => setMode('poster')} className={`rounded-md px-3 py-1 ${mode === 'poster' ? 'bg-card font-medium shadow-[var(--shadow-sm)]' : 'text-muted-foreground'}`}>AI Poster (full image)</button>
+        <button onClick={() => setMode('template')} className={`rounded-md px-3 py-1 ${mode === 'template' ? 'bg-card font-medium shadow-[var(--shadow-sm)]' : 'text-muted-foreground'}`}>Template editor</button>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,560px)_1fr]">
       <div className="space-y-3">
-        {hasDesign && (
+        {mode === 'poster' && (
+          <>
+            <div className="flex min-h-[420px] items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/30 p-3">
+              {posterUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={posterUrl} alt="" className="w-full max-w-[440px] rounded-md shadow-[var(--shadow-card)]" />
+              ) : posterBusy ? (
+                <span className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Painting your poster… (~15–30s)</span>
+              ) : (
+                <p className="px-8 text-center text-sm text-muted-foreground">Enter a topic → AI writes a detailed art-director prompt from your Brand Kit and paints a full premium poster.</p>
+              )}
+            </div>
+            {posterUrl && <Button size="sm" variant="outline" onClick={regenPoster} disabled={posterBusy}>{posterBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />} Regenerate variation</Button>}
+          </>
+        )}
+        {mode === 'template' && hasDesign && (
           <div className="flex flex-wrap gap-1.5">
             {TEMPLATES.map((t) => (
               <button key={t.key} onClick={() => switchTemplate(t.key)} className={`rounded-full px-3 py-1 text-xs font-medium ${template === t.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>{t.label}</button>
             ))}
           </div>
         )}
-        <div className="overflow-hidden rounded-xl border border-border bg-muted/30 p-3">
+        <div className={`overflow-hidden rounded-xl border border-border bg-muted/30 p-3 ${mode === 'poster' ? 'hidden' : ''}`}>
           <canvas ref={elRef} className="mx-auto block w-full max-w-[540px] rounded-md shadow-[var(--shadow-card)]" />
         </div>
-        {hasDesign && (
+        {mode === 'template' && hasDesign && (
           <div className="flex flex-wrap gap-1.5">
             <Button size="sm" variant="outline" onClick={undo} disabled={historyRef.current.length < 2}><Undo2 className="h-4 w-4" /> Undo</Button>
             <Button size="sm" variant="outline" onClick={addText}><Type className="h-4 w-4" /> Text</Button>
@@ -214,7 +269,7 @@ export function DesignEditor() {
             <Button size="sm" variant="outline" onClick={regenHero} disabled={regen}>{regen ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />} New photo</Button>
           </div>
         )}
-        {sel.kind && (
+        {mode === 'template' && sel.kind && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-2 text-sm">
             <button onClick={duplicate} className="rounded border px-2 py-1" title="Duplicate"><Copy className="h-3.5 w-3.5" /></button>
             <button onClick={() => layer('front')} className="rounded border px-2 py-1" title="Bring to front"><ArrowUpToLine className="h-3.5 w-3.5" /></button>
@@ -228,7 +283,7 @@ export function DesignEditor() {
             <button onClick={del} className="rounded border px-2 py-1 text-destructive" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
           </div>
         )}
-        {sel.kind === 'text' && (
+        {mode === 'template' && sel.kind === 'text' && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-2 text-sm">
             <button onClick={() => apply((o) => o.set('fontSize', Math.max(8, o.fontSize - 2)))} className="rounded border px-2">A-</button>
             <span className="w-8 text-center text-xs">{sel.fontSize}</span>
@@ -244,15 +299,16 @@ export function DesignEditor() {
       <div className="space-y-4">
         <div className="space-y-3 rounded-xl border border-border bg-card p-4">
           <label className="block text-sm font-medium">Topic / idea</label>
-          <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={2} className={area} placeholder="e.g. Manual work isn’t free — it’s just unbilled" />
+          <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={mode === 'poster' ? 5 : 2} className={area} placeholder={mode === 'poster' ? 'Describe the post you want (more detail = better), or just a topic…' : 'e.g. Manual work isn’t free — it’s just unbilled'} />
           <div className="flex flex-wrap gap-1.5">
             {EXAMPLES.map((ex) => <button key={ex} onClick={() => setBrief(ex)} className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground">{ex}</button>)}
           </div>
-          <Button onClick={() => generate()} disabled={busy || !ready || !brief.trim()} className="w-full">
-            {busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Designing post + visual…</> : <><Wand2 className="h-4 w-4" /> Generate design</>}
+          <Button onClick={() => (mode === 'poster' ? genPoster() : generate())} disabled={(mode === 'poster' ? posterBusy : busy || !ready) || !brief.trim()} className="w-full">
+            {(mode === 'poster' ? posterBusy : busy) ? <><Loader2 className="h-4 w-4 animate-spin" /> {mode === 'poster' ? 'Painting poster…' : 'Designing…'}</> : <><Wand2 className="h-4 w-4" /> {mode === 'poster' ? 'Generate AI poster' : 'Generate design'}</>}
           </Button>
-          {!ready && <p className="text-xs text-muted-foreground">Loading editor…</p>}
-          {hasDesign && <p className="text-xs text-muted-foreground">Switch layouts with the tabs above the canvas — same copy, different design.</p>}
+          {!ready && mode === 'template' && <p className="text-xs text-muted-foreground">Loading editor…</p>}
+          {mode === 'poster' && <p className="text-xs text-muted-foreground">AI writes a full art-director prompt from your <Link href="/settings/brand" className="underline">Brand Kit</Link> (colors, products, style, footer), then paints the whole poster. Text may vary — regenerate for another take.</p>}
+          {mode === 'template' && hasDesign && <p className="text-xs text-muted-foreground">Switch layouts with the tabs above the canvas — same copy, different design.</p>}
           {err && <p className="text-sm text-destructive">{err}</p>}
         </div>
 
@@ -270,9 +326,10 @@ export function DesignEditor() {
               <Button onClick={() => save(true)} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />} Save & schedule</Button>
               <Button variant="outline" onClick={() => save(false)} disabled={saving}><Check className="h-4 w-4" /> Save draft</Button>
             </div>
-            <p className="text-xs text-muted-foreground">Tip: click any element to move, resize, edit or recolour. Double-click text to type.</p>
+            {mode === 'template' && <p className="text-xs text-muted-foreground">Tip: click any element to move, resize, edit or recolour. Double-click text to type.</p>}
           </div>
         )}
+      </div>
       </div>
     </div>
   )
