@@ -252,7 +252,7 @@ interface PosterSpec {
   hashtags: string[]
 }
 
-export async function expandPoster(opts: { brand: BrandProfile; brief: string; kbContext?: string }): Promise<{ imagePrompt: string; caption: string; hashtags: string[]; spec: PosterSpec } | null> {
+export async function expandPoster(opts: { brand: BrandProfile; brief: string; kbContext?: string; shape?: string }): Promise<{ imagePrompt: string; caption: string; hashtags: string[]; spec: PosterSpec } | null> {
   if (!aiConfigured()) return null
   const b = opts.brand
   const system = 'You are a world-class advertising art director planning a PREMIUM, photorealistic branded Instagram poster. You output a precise, structured content spec. Keep on-image words minimal and impactful. Never invent facts, prices or claims not provided.'
@@ -296,16 +296,22 @@ export async function expandPoster(opts: { brand: BrandProfile; brief: string; k
     caption: String(p.caption ?? opts.brief).slice(0, 600),
     hashtags: Array.isArray(p.hashtags) ? p.hashtags.map((h) => String(h).replace(/^#/, '').trim()).filter(Boolean).slice(0, 15) : [],
   }
-  return { imagePrompt: buildPosterPrompt(b, spec), caption: spec.caption, hashtags: spec.hashtags, spec }
+  return { imagePrompt: buildPosterPrompt(b, spec, opts.shape ?? 'portrait'), caption: spec.caption, hashtags: spec.hashtags, spec }
+}
+
+const SHAPE_TEXT: Record<string, string> = {
+  portrait: 'A vertical 4:5 portrait',
+  square: 'A perfectly square 1:1',
+  landscape: 'A wide 3:2 landscape',
 }
 
 /** Assemble a complete gpt-image-1 prompt from the spec + fixed FOLLOW / AVOID rules. */
-function buildPosterPrompt(b: BrandProfile, s: PosterSpec): string {
+function buildPosterPrompt(b: BrandProfile, s: PosterSpec, shape: string): string {
   const palette = b.brand_colors.length ? b.brand_colors.join(', ') : 'an elegant, tasteful palette'
   const footer = [b.website, b.phone].filter(Boolean).join('   and   ') || 'the brand website'
   const benefits = s.benefits.map((x, i) => `${i + 1}. Icon: ${x.icon || 'simple line icon'} — "${x.title}"${x.desc ? ` (${x.desc})` : ''}`).join('\n')
   return [
-    'FORMAT: A vertical 4:5 portrait Instagram advertisement poster, premium editorial commercial design, ultra-clean and uncluttered, bright and airy.',
+    `FORMAT: ${SHAPE_TEXT[shape] ?? SHAPE_TEXT.portrait} social-media advertisement poster, premium editorial commercial design, ultra-clean and uncluttered, bright and airy.`,
     `BRAND: Prominently feature the brand name "${b.business_name}" spelled EXACTLY. Use ONLY this color palette: ${palette}. Visual theme: ${b.theme}. Imagery style: ${b.imagery_style}.`,
     `COMPOSITION: ${s.concept || 'A sophisticated, balanced split composition with generous whitespace.'}`,
     `HEADLINE (render this text sharply and correctly): "${s.headline}"${s.subheadline ? `, with the supporting line "${s.subheadline}".` : '.'} Use a clear bold typography hierarchy.`,

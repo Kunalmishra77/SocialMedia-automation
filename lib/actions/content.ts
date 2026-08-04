@@ -383,8 +383,13 @@ export async function regenerateHeroAction(prompt: string): Promise<{ url?: stri
 
 export interface PosterResult { url: string; imagePrompt: string; caption: string; hashtags: string[] }
 
+/** Social size → gpt-image-1 dimensions. */
+const POSTER_SIZE: Record<string, '1024x1536' | '1024x1024' | '1536x1024'> = {
+  portrait: '1024x1536', square: '1024x1024', landscape: '1536x1024',
+}
+
 /** Topic + brand kit → AI writes a detailed prompt → gpt-image-1 full poster. */
-export async function generatePosterAction(brief: string): Promise<{ poster?: PosterResult; error?: string }> {
+export async function generatePosterAction(brief: string, shape = 'portrait'): Promise<{ poster?: PosterResult; error?: string }> {
   const { workspaceId } = await ctx()
   if (!aiConfigured()) return { error: 'Add an OpenAI key to generate posters.' }
   const b = brief.trim()
@@ -392,18 +397,18 @@ export async function generatePosterAction(brief: string): Promise<{ poster?: Po
   const admin = createAdminClient()
   const brand = await getBrandProfile(admin, workspaceId)
   const kbContext = await retrieveKbContext(admin, workspaceId, b, false)
-  const ex = await expandPoster({ brand, brief: b, kbContext })
+  const ex = await expandPoster({ brand, brief: b, kbContext, shape })
   if (!ex) return { error: 'Could not build the poster — try rephrasing.' }
-  const url = await generatePoster(admin, workspaceId, ex.imagePrompt)
+  const url = await generatePoster(admin, workspaceId, ex.imagePrompt, POSTER_SIZE[shape] ?? '1024x1536')
   if (!url) return { error: 'Image generation failed. Ensure your OpenAI account has gpt-image-1 access (may need org verification), then retry.' }
   return { poster: { url, imagePrompt: ex.imagePrompt, caption: ex.caption, hashtags: ex.hashtags } }
 }
 
 /** Regenerate the poster image from an existing prompt (a fresh variation). */
-export async function regeneratePosterAction(prompt: string): Promise<{ url?: string | null; error?: string }> {
+export async function regeneratePosterAction(prompt: string, shape = 'portrait'): Promise<{ url?: string | null; error?: string }> {
   const { workspaceId } = await ctx()
   const admin = createAdminClient()
-  const url = await generatePoster(admin, workspaceId, prompt)
+  const url = await generatePoster(admin, workspaceId, prompt, POSTER_SIZE[shape] ?? '1024x1536')
   return { url }
 }
 

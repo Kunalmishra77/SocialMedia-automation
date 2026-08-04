@@ -23,6 +23,18 @@ export async function updateBrandProfileAction(formData: FormData): Promise<{ ok
   const workspaceId = await requireManageBrand()
   const admin = createAdminClient()
 
+  // Logo: an uploaded file (preferred) or a pasted URL.
+  let logoUrl = String(formData.get('logo_url') ?? '').trim()
+  const logoFile = formData.get('logo_file') as File | null
+  if (logoFile && typeof logoFile === 'object' && logoFile.size > 0) {
+    if (logoFile.size > 5 * 1024 * 1024) return { error: 'Logo must be under 5 MB.' }
+    const ext = (logoFile.name.split('.').pop() || 'png').toLowerCase()
+    const path = `${workspaceId}/logo-${Date.now()}.${ext}`
+    const { error: upErr } = await admin.storage.from('content-media').upload(path, logoFile, { contentType: logoFile.type || undefined, upsert: true })
+    if (upErr) return { error: `Logo upload failed: ${upErr.message}` }
+    logoUrl = admin.storage.from('content-media').getPublicUrl(path).data.publicUrl
+  }
+
   const { data: ws } = await admin.from('workspaces').select('settings').eq('id', workspaceId).single()
 
   const profile: BrandProfile = {
@@ -39,7 +51,7 @@ export async function updateBrandProfileAction(formData: FormData): Promise<{ ok
     competitors: String(formData.get('competitors') ?? '').trim(),
     objectives: String(formData.get('objectives') ?? '').trim(),
     brand_colors: csv(formData.get('brand_colors')).filter((c) => /^#?[0-9a-fA-F]{3,8}$/.test(c)).map((c) => (c.startsWith('#') ? c : `#${c}`)),
-    logo_url: String(formData.get('logo_url') ?? '').trim(),
+    logo_url: logoUrl,
     website: String(formData.get('website') ?? '').trim(),
     phone: String(formData.get('phone') ?? '').trim(),
     handle: String(formData.get('handle') ?? '').trim(),

@@ -67,9 +67,9 @@ export async function generateHeroImage(
  * Full AI poster — gpt-image-1 renders the complete branded poster (text + subject
  * + products) from a detailed prompt. High quality, portrait. Returns URL or null.
  */
-export async function generatePoster(admin: Admin, workspaceId: string, prompt: string): Promise<string | null> {
+export async function generatePoster(admin: Admin, workspaceId: string, prompt: string, size: '1024x1536' | '1024x1024' | '1536x1024' = '1024x1536'): Promise<string | null> {
   if (!prompt) return null
-  return callGptImage(admin, workspaceId, prompt, 'high', '1024x1536')
+  return callGptImage(admin, workspaceId, prompt, 'high', size)
 }
 
 /** Shared gpt-image-1 call → upload → public URL. */

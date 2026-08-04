@@ -51,6 +51,7 @@ export function DesignEditor() {
 
   // AI Poster mode (full gpt-image-1 poster)
   const [mode, setMode] = useState<'poster' | 'template'>('poster')
+  const [shape, setShape] = useState<'portrait' | 'square' | 'landscape'>('portrait')
   const [posterUrl, setPosterUrl] = useState<string | null>(null)
   const [posterBusy, setPosterBusy] = useState(false)
   const posterPromptRef = useRef<string>('')
@@ -161,7 +162,7 @@ export function DesignEditor() {
     const b = (text ?? brief).trim()
     if (!b || posterBusy) return
     setPosterBusy(true); setErr(null); setSaved(null)
-    const res = await generatePosterAction(b)
+    const res = await generatePosterAction(b, shape)
     setPosterBusy(false)
     if (res.error || !res.poster) { setErr(res.error ?? 'Failed'); return }
     posterPromptRef.current = res.poster.imagePrompt
@@ -173,7 +174,7 @@ export function DesignEditor() {
   async function regenPoster() {
     if (!posterPromptRef.current || posterBusy) return
     setPosterBusy(true); setErr(null)
-    const res = await regeneratePosterAction(posterPromptRef.current)
+    const res = await regeneratePosterAction(posterPromptRef.current, shape)
     setPosterBusy(false)
     if (res.url) setPosterUrl(res.url)
   }
@@ -303,6 +304,16 @@ export function DesignEditor() {
           <div className="flex flex-wrap gap-1.5">
             {EXAMPLES.map((ex) => <button key={ex} onClick={() => setBrief(ex)} className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground">{ex}</button>)}
           </div>
+          {mode === 'poster' && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Size</label>
+              <select value={shape} onChange={(e) => setShape(e.target.value as typeof shape)} className={`${area} h-10`}>
+                <option value="portrait">Portrait 4:5 — Instagram post / Story</option>
+                <option value="square">Square 1:1 — Instagram / Facebook / LinkedIn</option>
+                <option value="landscape">Landscape 3:2 — X / LinkedIn / YouTube</option>
+              </select>
+            </div>
+          )}
           <Button onClick={() => (mode === 'poster' ? genPoster() : generate())} disabled={(mode === 'poster' ? posterBusy : busy || !ready) || !brief.trim()} className="w-full">
             {(mode === 'poster' ? posterBusy : busy) ? <><Loader2 className="h-4 w-4 animate-spin" /> {mode === 'poster' ? 'Painting poster…' : 'Designing…'}</> : <><Wand2 className="h-4 w-4" /> {mode === 'poster' ? 'Generate AI poster' : 'Generate design'}</>}
           </Button>

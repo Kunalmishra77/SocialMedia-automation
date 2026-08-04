@@ -95,8 +95,13 @@ export function BrandForm({ profile }: { profile: BrandProfile }) {
           <p className="text-xs text-muted-foreground">First is primary. Used on designed posts.</p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="logo_url">Logo URL</Label>
-          <Input id="logo_url" name="logo_url" defaultValue={profile.logo_url} placeholder="https://…/logo.png" />
+          <Label htmlFor="logo_file">Logo</Label>
+          {profile.logo_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={profile.logo_url} alt="Current logo" className="h-10 w-auto rounded border border-border bg-white p-1" />
+          )}
+          <input id="logo_file" name="logo_file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm" />
+          <Input name="logo_url" defaultValue={profile.logo_url} placeholder="…or paste a logo URL" />
         </div>
       </div>
 
