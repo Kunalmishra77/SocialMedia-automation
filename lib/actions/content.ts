@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership } from '@/lib/authz'
 import { callAI, aiConfigured } from '@/lib/ai/client'
 import { getBrandProfile } from '@/lib/ai/brand'
-import { generateContent, generateDesign, expandPoster, type PlatformVariants, type PostDesign } from '@/lib/ai/content-gen'
+import { generateContent, generateDesign, expandPoster, describeReference, type PlatformVariants, type PostDesign } from '@/lib/ai/content-gen'
 import { generatePostImage, generateHeroImage, generatePoster } from '@/lib/ai/image-gen'
 import { retrieveKbContext } from '@/lib/ai/reply'
 
@@ -381,7 +381,7 @@ export async function regenerateHeroAction(prompt: string): Promise<{ url?: stri
 
 // ── AI Poster: full gpt-image-1 poster from topic + brand kit ──────────────
 
-export interface PosterResult { url: string; imagePrompt: string; caption: string; hashtags: string[] }
+export interface PosterResult { url: string; imagePrompt: string; caption: string; hashtags: string[]; logo: string }
 
 /** Social size → gpt-image-1 dimensions. */
 const POSTER_SIZE: Record<string, '1024x1536' | '1024x1024' | '1536x1024'> = {
@@ -389,7 +389,7 @@ const POSTER_SIZE: Record<string, '1024x1536' | '1024x1024' | '1536x1024'> = {
 }
 
 /** Topic + brand kit → AI writes a detailed prompt → gpt-image-1 full poster. */
-export async function generatePosterAction(brief: string, shape = 'portrait'): Promise<{ poster?: PosterResult; error?: string }> {
+export async function generatePosterAction(brief: string, shape = 'portrait', refUrl?: string): Promise<{ poster?: PosterResult; error?: string }> {
   const { workspaceId } = await ctx()
   if (!aiConfigured()) return { error: 'Add an OpenAI key to generate posters.' }
   const b = brief.trim()
@@ -397,11 +397,26 @@ export async function generatePosterAction(brief: string, shape = 'portrait'): P
   const admin = createAdminClient()
   const brand = await getBrandProfile(admin, workspaceId)
   const kbContext = await retrieveKbContext(admin, workspaceId, b, false)
-  const ex = await expandPoster({ brand, brief: b, kbContext, shape })
+  const referenceStyle = refUrl ? (await describeReference(refUrl)) ?? undefined : undefined
+  const ex = await expandPoster({ brand, brief: b, kbContext, shape, referenceStyle })
   if (!ex) return { error: 'Could not build the poster — try rephrasing.' }
   const url = await generatePoster(admin, workspaceId, ex.imagePrompt, POSTER_SIZE[shape] ?? '1024x1536')
   if (!url) return { error: 'Image generation failed. Ensure your OpenAI account has gpt-image-1 access (may need org verification), then retry.' }
-  return { poster: { url, imagePrompt: ex.imagePrompt, caption: ex.caption, hashtags: ex.hashtags } }
+  return { poster: { url, imagePrompt: ex.imagePrompt, caption: ex.caption, hashtags: ex.hashtags, logo: brand.logo_url } }
+}
+
+/** Upload a reference image (for style-guided generation) → returns its URL. */
+export async function uploadReferenceAction(formData: FormData): Promise<{ url?: string; error?: string }> {
+  const { workspaceId } = await ctx()
+  const file = formData.get('file') as File | null
+  if (!file || typeof file !== 'object' || file.size === 0) return { error: 'Choose an image.' }
+  if (file.size > 10 * 1024 * 1024) return { error: 'Image must be under 10 MB.' }
+  const admin = createAdminClient()
+  const ext = (file.name.split('.').pop() || 'png').toLowerCase()
+  const path = `${workspaceId}/ref-${Date.now()}.${ext}`
+  const { error } = await admin.storage.from('content-media').upload(path, file, { contentType: file.type || undefined, upsert: false })
+  if (error) return { error: `Upload failed: ${error.message}` }
+  return { url: admin.storage.from('content-media').getPublicUrl(path).data.publicUrl }
 }
 
 /** Regenerate the poster image from an existing prompt (a fresh variation). */

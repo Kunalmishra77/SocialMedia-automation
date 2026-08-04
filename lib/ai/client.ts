@@ -83,6 +83,30 @@ export async function callAI(
   return null
 }
 
+/** Vision: describe an image via a multimodal model. Returns text or null. */
+export async function callVision(imageUrl: string, prompt: string): Promise<string | null> {
+  const provider = resolveProvider()
+  if (!provider || !imageUrl) return null
+  const isOpenRouter = provider.url.includes('openrouter')
+  const model = isOpenRouter ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'
+  try {
+    const res = await fetch(provider.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${provider.key}`, ...provider.headers },
+      body: JSON.stringify({
+        model,
+        max_tokens: 500,
+        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageUrl } }] }],
+      }),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.choices?.[0]?.message?.content?.trim() ?? null
+  } catch {
+    return null
+  }
+}
+
 /** Generate a 1536-dim embedding for text (OpenAI only), or null. */
 export async function generateEmbedding(text: string): Promise<number[] | null> {
   const key = process.env.OPENAI_API_KEY
