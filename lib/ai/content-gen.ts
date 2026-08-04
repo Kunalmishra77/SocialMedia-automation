@@ -138,6 +138,8 @@ export interface PostDesign {
   headline: string       // main line(s), UPPERCASE punchy
   headlineAccent: string // the portion of the headline to highlight in the accent colour
   subtext: string        // one supporting line
+  cards: string[]        // 4 short 2-4 word labels (for card/list templates)
+  cta: string            // short call-to-action / closing line
   heroPrompt: string     // detailed prompt for a photorealistic hero image (no text)
 }
 
@@ -157,18 +159,23 @@ export async function generateDesign(opts: { brand: BrandProfile; brief: string;
     '  "headline": "punchy ALL-CAPS headline, max ~8 words, can be two short sentences",',
     '  "headlineAccent": "the exact substring of headline to highlight in the accent colour (a key phrase)",',
     '  "subtext": "one supporting sentence, sentence case, under 14 words",',
+    '  "cards": ["4 short 2-4 word labels that support the topic (e.g. tasks, tips, benefits) — ALL CAPS"],',
+    '  "cta": "a short closing line or call-to-action, under 12 words",',
     '  "heroPrompt": "a detailed prompt for a PHOTOREALISTIC hero image relevant to the topic — describe subject, setting, lighting, mood, composition; cinematic, professional, high quality; NO text, NO words, NO logos in the image"',
     '}',
   ].join('\n')
-  const raw = await callAI([{ role: 'system', content: system }, { role: 'user', content: user }], { maxTokens: 500, temperature: 0.8 })
+  const raw = await callAI([{ role: 'system', content: system }, { role: 'user', content: user }], { maxTokens: 600, temperature: 0.8 })
   if (!raw) return null
   const p = extractJson(raw) as Partial<PostDesign> | null
   if (!p?.headline) return null
+  const cards = Array.isArray(p.cards) ? p.cards.map((c) => String(c).toUpperCase().slice(0, 30)).filter(Boolean).slice(0, 4) : []
   return {
     badge: String(p.badge ?? '').toUpperCase().slice(0, 40),
     headline: String(p.headline ?? '').toUpperCase().slice(0, 120),
     headlineAccent: String(p.headlineAccent ?? '').toUpperCase().slice(0, 80),
     subtext: String(p.subtext ?? '').slice(0, 160),
+    cards,
+    cta: String(p.cta ?? '').slice(0, 120),
     heroPrompt: String(p.heroPrompt ?? opts.brief).slice(0, 1000),
   }
 }
