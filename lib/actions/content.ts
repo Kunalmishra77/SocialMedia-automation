@@ -402,24 +402,28 @@ export async function generatePosterAction(brief: string, shape = 'portrait', re
   const ex = await expandPoster({ brand, brief: b, kbContext, shape, referenceStyle })
   if (!ex) return { error: 'Could not build the poster — try rephrasing.' }
   const size = POSTER_SIZE[shape] ?? '1024x1536'
-  // Prefer integrating real brand assets (logo + product photos); fall back to plain generation.
-  const assets = [brand.logo_url, ...brand.product_images].filter(Boolean)
+  // Products go into the image via edits; the EXACT logo is overlaid afterwards
+  // (the model redraws logos inexactly, so we never let it render our logo).
+  const assets = brand.product_images.filter(Boolean)
   const prompt = assetInstruction(brand) + ex.imagePrompt
-  let logoBaked = false
-  let url = assets.length ? await generatePosterWithAssets(admin, workspaceId, prompt, assets, size) : null
-  if (url) logoBaked = true
-  else url = await generatePoster(admin, workspaceId, ex.imagePrompt, size)
+  const url = assets.length
+    ? (await generatePosterWithAssets(admin, workspaceId, prompt, assets, size)) ?? (await generatePoster(admin, workspaceId, prompt, size))
+    : await generatePoster(admin, workspaceId, prompt, size)
   if (!url) return { error: 'Image generation failed. Ensure your OpenAI account has gpt-image-1 access (may need org verification), then retry.' }
-  return { poster: { url, imagePrompt: ex.imagePrompt, caption: ex.caption, hashtags: ex.hashtags, logo: brand.logo_url, logoBaked } }
+  // logoBaked=false → the editor overlays the exact logo automatically.
+  return { poster: { url, imagePrompt: ex.imagePrompt, caption: ex.caption, hashtags: ex.hashtags, logo: brand.logo_url, logoBaked: false } }
 }
 
-/** Instruction prefix telling the model how to use the provided input images. */
+/** Instruction: use real product photos as inputs; NEVER render a logo (we overlay it). */
 function assetInstruction(brand: { logo_url: string; product_images: string[] }): string {
-  const parts: string[] = []
-  if (brand.logo_url) parts.push('the brand LOGO — place THIS EXACT logo prominently and crisply, unaltered')
-  if (brand.product_images.length) parts.push(`${brand.product_images.length} REAL PRODUCT photo(s) — show THESE EXACT products in the poster, do not invent different products`)
-  if (!parts.length) return ''
-  return `PROVIDED INPUT IMAGES (use them faithfully): in order, ${parts.join('; then ')}.\n\n`
+  let s = ''
+  if (brand.product_images.length) {
+    s += `PROVIDED PRODUCT IMAGES: ${brand.product_images.length} real product photo(s) are provided as input — show THESE EXACT products in the poster (same packaging), do not invent, alter or duplicate the products.\n`
+  }
+  if (brand.logo_url) {
+    s += 'Do NOT draw, render, write or invent any brand logo, logo mark or brand wordmark anywhere in the image. Keep the TOP-RIGHT corner clean and uncluttered so the real logo can be overlaid there afterwards.\n'
+  }
+  return s ? s + '\n' : ''
 }
 
 /** Upload a reference image (for style-guided generation) → returns its URL. */
@@ -442,9 +446,10 @@ export async function regeneratePosterAction(prompt: string, shape = 'portrait')
   const admin = createAdminClient()
   const brand = await getBrandProfile(admin, workspaceId)
   const size = POSTER_SIZE[shape] ?? '1024x1536'
-  const assets = [brand.logo_url, ...brand.product_images].filter(Boolean)
-  const url = (assets.length ? await generatePosterWithAssets(admin, workspaceId, assetInstruction(brand) + prompt, assets, size) : null)
-    ?? await generatePoster(admin, workspaceId, prompt, size)
+  const assets = brand.product_images.filter(Boolean)
+  const p = assetInstruction(brand) + prompt
+  const url = (assets.length ? await generatePosterWithAssets(admin, workspaceId, p, assets, size) : null)
+    ?? await generatePoster(admin, workspaceId, p, size)
   return { url }
 }
 
