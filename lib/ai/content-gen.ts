@@ -244,8 +244,10 @@ export async function suggestTopic(opts: {
 interface PosterSpec {
   concept: string
   headline: string
+  headlineAccent: string
   subheadline: string
   benefits: { title: string; desc: string; icon: string }[]
+  cta: string
   subject: string
   products: string
   caption: string
@@ -274,9 +276,11 @@ export async function expandPoster(opts: { brand: BrandProfile; brief: string; k
     'Return ONLY JSON:',
     '{',
     '  "concept": "1-2 sentences: the composition idea and mood (e.g. clean split layout, subject right, message left)",',
-    '  "headline": "the main headline to render on the image — short (max 5 words), punchy, correctly spelled",',
+    '  "headline": "the main headline to render — short (max 5 words), punchy, correctly spelled",',
+    '  "headlineAccent": "the 1-3 words within the headline to emphasise in the accent colour",',
     '  "subheadline": "one short supporting line",',
     '  "benefits": [{"title": "SHORT BENEFIT", "desc": "2-5 word detail", "icon": "simple icon idea e.g. water droplet, shield, sparkle"}],',
+    '  "cta": "a short call-to-action for a button, e.g. Book Free Consultation / Shop Now / Get Started",',
     '  "subject": "detailed description of the main photorealistic subject/scene relevant to the topic and brand imagery style",',
     '  "products": "description of a tasteful product display if (and only if) the brand sells physical products, else empty string",',
     '  "caption": "engaging Instagram caption, 2-4 short lines",',
@@ -291,8 +295,10 @@ export async function expandPoster(opts: { brand: BrandProfile; brief: string; k
   const spec: PosterSpec = {
     concept: String(p.concept ?? '').slice(0, 300),
     headline: String(p.headline ?? '').slice(0, 80),
+    headlineAccent: String(p.headlineAccent ?? '').slice(0, 40),
     subheadline: String(p.subheadline ?? '').slice(0, 120),
     benefits: Array.isArray(p.benefits) ? p.benefits.slice(0, 4).map((x) => ({ title: String(x?.title ?? '').slice(0, 40), desc: String(x?.desc ?? '').slice(0, 60), icon: String(x?.icon ?? '').slice(0, 40) })) : [],
+    cta: String(p.cta ?? '').slice(0, 40),
     subject: String(p.subject ?? '').slice(0, 600),
     products: String(p.products ?? '').slice(0, 400),
     caption: String(p.caption ?? opts.brief).slice(0, 600),
@@ -322,14 +328,16 @@ function buildPosterPrompt(b: BrandProfile, s: PosterSpec, shape: string, refere
     referenceStyle && `STYLE REFERENCE (match this aesthetic, but for THIS brand and content):\n${referenceStyle}`,
     `BRAND: Feature the brand name "${b.business_name}" spelled EXACTLY. Use ONLY this color palette: ${palette}. Visual theme: ${b.theme}. Imagery style: ${b.imagery_style}.`,
     `COMPOSITION: ${s.concept || 'A sophisticated, balanced split composition with generous whitespace.'}`,
-    `HEADLINE (render exactly and sharply): "${s.headline}"${s.subheadline ? `, with the short supporting line "${s.subheadline}".` : '.'}`,
-    benefits && `FEATURE POINTS (each a minimal line icon + a bold SHORT label, correctly spelled):\n${benefits}`,
+    `HEADLINE (render exactly and sharply, LARGE and bold): "${s.headline}"${s.headlineAccent ? ` — render the words "${s.headlineAccent}" in the ACCENT colour for a striking two-tone headline` : ''}${s.subheadline ? `. Add the short supporting line "${s.subheadline}" below it.` : '.'}`,
+    benefits && `FEATURE POINTS (each a minimal accent-colour line icon + a bold SHORT label + tiny description, correctly spelled, neatly aligned in a column):\n${benefits}`,
+    s.cta && `CALL-TO-ACTION: render a prominent solid ROUNDED BUTTON in the brand accent colour with white bold text "${s.cta}" and a small right arrow "→", placed clearly (e.g. lower-left).`,
     `MAIN SUBJECT: ${s.subject}. Photorealistic, professional studio lighting, natural realistic texture, sharp focus.`,
-    s.products && `PRODUCTS: ${s.products}. Realistic premium packaging showing the brand name; all products fully visible, none cropped or duplicated.`,
+    s.products && `PRODUCTS: ${s.products}. Realistic premium packaging; all products fully visible, none cropped or duplicated.`,
     `FOOTER: a full-width horizontal footer strip along the bottom edge in the brand accent color, showing ${footer} in clean bold WHITE sans-serif text, clearly readable.`,
-    'TYPOGRAPHY: professional hierarchy — heavy modern sans-serif for headings; perfect alignment and spacing.',
+    'DEPTH & POLISH: give it a premium modern campaign finish — subtle soft gradients, gentle realistic shadows and highlights, and a few tasteful semi-transparent glassmorphic accent cards / floating callout elements to add depth (do NOT clutter, keep it clean and airy). Rich, high-end, magazine-quality art direction.',
+    'TYPOGRAPHY: strong professional hierarchy — heavy modern sans-serif for the big headline, medium for labels; perfect alignment, kerning and spacing.',
     'CRITICAL TEXT RULES: Keep the TOTAL amount of on-image text minimal. Render ONLY the exact words specified above — spelled perfectly, sharp, legible, high-contrast, well-kerned. Do NOT invent, add, repeat, or hallucinate any extra words, gibberish, lorem-ipsum, random letters or fake paragraphs. If unsure, use fewer words.',
-    'QUALITY: photorealistic, high-end commercial advertising, luxury editorial art direction, soft natural shadows, professional color grading.',
+    'QUALITY: photorealistic, high-end commercial advertising, luxury editorial art direction, soft natural shadows, professional color grading, crisp and premium.',
     'STRICTLY AVOID: watermarks, random or duplicate logos, extra unrequested text, misspelled/blurry/illegible/garbled text, deformed hands or fingers, duplicate or cropped products, cluttered layout, dark or harsh backgrounds, low-quality artifacts.',
   ].filter(Boolean).join('\n\n')
 }
