@@ -242,7 +242,7 @@ export async function suggestTopic(opts: {
  * writing users otherwise do in ChatGPT/Gamma.
  */
 interface PosterSpec {
-  concept: string
+  style: string
   headline: string
   headlineAccent: string
   subheadline: string
@@ -257,7 +257,7 @@ interface PosterSpec {
 export async function expandPoster(opts: { brand: BrandProfile; brief: string; kbContext?: string; shape?: string; referenceStyle?: string }): Promise<{ imagePrompt: string; caption: string; hashtags: string[]; spec: PosterSpec } | null> {
   if (!aiConfigured()) return null
   const b = opts.brand
-  const system = 'You are a world-class advertising art director planning a PREMIUM, photorealistic branded Instagram poster. You output a precise, structured content spec. Keep ALL on-image words minimal, short and impactful (fewer words render far more reliably). Never invent facts, prices or claims not provided.'
+  const system = 'You are a world-class advertising art director. For the given topic and brand, DESIGN THE MOST EFFECTIVE PREMIUM poster for THIS specific message — CHOOSE the composition that best fits it; do NOT force a fixed template, and vary the style across different topics. Include ONLY the elements that genuinely serve this message (a minimal typographic poster is often more premium than a busy one). Keep all on-image words minimal and impactful. Never invent facts, prices or claims not provided.'
   const brandBlock = [
     `Brand name (spell EXACTLY): "${b.business_name}"`,
     b.industry && `Industry: ${b.industry}`,
@@ -272,28 +272,28 @@ export async function expandPoster(opts: { brand: BrandProfile; brief: string; k
     opts.referenceStyle ? `\nMATCH THIS VISUAL STYLE (from a reference the user provided):\n${opts.referenceStyle}` : '',
     opts.kbContext ? `\nFACTS (use, never contradict):\n${opts.kbContext}` : '',
     '',
-    'Keep on-image text MINIMAL: headline max 5 words; each benefit title max 3 words; one short subline. Fewer words = fewer rendering errors.',
+    'Keep on-image text MINIMAL and correctly spelled. Choose the layout that best fits THIS message — vary it.',
     'Return ONLY JSON:',
     '{',
-    '  "concept": "1-2 sentences: the composition idea and mood (e.g. clean split layout, subject right, message left)",',
+    '  "style": "the poster composition YOU choose as most effective for this message — e.g. bold typographic statement, split hero with product, minimal editorial, benefit grid, quote spotlight, lifestyle hero, before/after, data/stat highlight, promo/offer. Describe the layout in 1-2 sentences.",',
     '  "headline": "the main headline to render — short (max 5 words), punchy, correctly spelled",',
-    '  "headlineAccent": "the 1-3 words within the headline to emphasise in the accent colour",',
-    '  "subheadline": "one short supporting line",',
-    '  "benefits": [{"title": "SHORT BENEFIT", "desc": "2-5 word detail", "icon": "simple icon idea e.g. water droplet, shield, sparkle"}],',
-    '  "cta": "a short call-to-action for a button, e.g. Book Free Consultation / Shop Now / Get Started",',
-    '  "subject": "detailed description of the main photorealistic subject/scene relevant to the topic and brand imagery style",',
-    '  "products": "description of a tasteful product display if (and only if) the brand sells physical products, else empty string",',
+    '  "headlineAccent": "the 1-3 words within the headline to emphasise in the accent colour (or empty)",',
+    '  "subheadline": "one short supporting line (or empty)",',
+    '  "benefits": [{"title": "SHORT BENEFIT", "desc": "2-5 word detail", "icon": "icon idea"}]  — include 0 to 4, ONLY if benefit points suit this message,',
+    '  "cta": "a short button call-to-action ONLY if it suits this message, else empty",',
+    '  "subject": "the main photorealistic subject/scene (or empty if the poster is purely typographic)",',
+    '  "products": "product display only if the brand sells physical products AND it suits this message, else empty",',
     '  "caption": "engaging Instagram caption, 2-4 short lines",',
     '  "hashtags": ["8-12 relevant hashtags, no # prefix"]',
     '}',
-    'Provide 3-4 benefits.',
+    'Pick the style that makes the STRONGEST premium poster for this exact message — different topics should look different.',
   ].filter(Boolean).join('\n')
   const raw = await callAI([{ role: 'system', content: system }, { role: 'user', content: user }], { maxTokens: 1200, temperature: 0.8 })
   if (!raw) return null
   const p = extractJson(raw) as Partial<PosterSpec> | null
   if (!p?.headline) return null
   const spec: PosterSpec = {
-    concept: String(p.concept ?? '').slice(0, 300),
+    style: String(p.style ?? '').slice(0, 300),
     headline: String(p.headline ?? '').slice(0, 80),
     headlineAccent: String(p.headlineAccent ?? '').slice(0, 40),
     subheadline: String(p.subheadline ?? '').slice(0, 120),
@@ -327,14 +327,14 @@ function buildPosterPrompt(b: BrandProfile, s: PosterSpec, shape: string, refere
     `FORMAT: ${SHAPE_TEXT[shape] ?? SHAPE_TEXT.portrait} social-media advertisement poster, premium editorial commercial design, ultra-clean and uncluttered, bright and airy.`,
     referenceStyle && `STYLE REFERENCE (match this aesthetic, but for THIS brand and content):\n${referenceStyle}`,
     `BRAND: Feature the brand name "${b.business_name}" spelled EXACTLY. Use ONLY this color palette: ${palette}. Visual theme: ${b.theme}. Imagery style: ${b.imagery_style}.`,
-    `COMPOSITION: ${s.concept || 'A sophisticated, balanced split composition with generous whitespace.'}`,
+    `COMPOSITION (follow this chosen style): ${s.style || 'A sophisticated, balanced composition with generous whitespace.'}`,
     `HEADLINE (render exactly and sharply, LARGE and bold): "${s.headline}"${s.headlineAccent ? ` — render the words "${s.headlineAccent}" in the ACCENT colour for a striking two-tone headline` : ''}${s.subheadline ? `. Add the short supporting line "${s.subheadline}" below it.` : '.'}`,
-    benefits && `FEATURE POINTS (each a minimal accent-colour line icon + a bold SHORT label + tiny description, correctly spelled, neatly aligned in a column):\n${benefits}`,
-    s.cta && `CALL-TO-ACTION: render a prominent solid ROUNDED BUTTON in the brand accent colour with white bold text "${s.cta}" and a small right arrow "→", placed clearly (e.g. lower-left).`,
-    `MAIN SUBJECT: ${s.subject}. Photorealistic, professional studio lighting, natural realistic texture, sharp focus.`,
+    benefits && `FEATURE POINTS (each a minimal accent-colour line icon + a bold SHORT label + tiny description, correctly spelled, neatly aligned):\n${benefits}`,
+    s.cta && `CALL-TO-ACTION: render a prominent solid ROUNDED BUTTON in the brand accent colour with white bold text "${s.cta}" and a small right arrow "→".`,
+    s.subject && `MAIN SUBJECT: ${s.subject}. Photorealistic, professional studio lighting, natural realistic texture, sharp focus.`,
     s.products && `PRODUCTS: ${s.products}. Realistic premium packaging; all products fully visible, none cropped or duplicated.`,
     `FOOTER: a full-width horizontal footer strip along the bottom edge in the brand accent color, showing ${footer} in clean bold WHITE sans-serif text, clearly readable.`,
-    'DEPTH & POLISH: give it a premium modern campaign finish — subtle soft gradients, gentle realistic shadows and highlights, and a few tasteful semi-transparent glassmorphic accent cards / floating callout elements to add depth (do NOT clutter, keep it clean and airy). Rich, high-end, magazine-quality art direction.',
+    'PREMIUM FINISH: high-end, magazine-quality art direction appropriate to the chosen style — clean confident composition, purposeful whitespace, subtle depth (soft gradients, gentle shadows, and glassmorphic / floating accents ONLY where they suit the style), professional color grading. Elegant, not cluttered.',
     'TYPOGRAPHY: strong professional hierarchy — heavy modern sans-serif for the big headline, medium for labels; perfect alignment, kerning and spacing.',
     'CRITICAL TEXT RULES: Keep the TOTAL amount of on-image text minimal. Render ONLY the exact words specified above — spelled perfectly, sharp, legible, high-contrast, well-kerned. Do NOT invent, add, repeat, or hallucinate any extra words, gibberish, lorem-ipsum, random letters or fake paragraphs. If unsure, use fewer words.',
     'QUALITY: photorealistic, high-end commercial advertising, luxury editorial art direction, soft natural shadows, professional color grading, crisp and premium.',
