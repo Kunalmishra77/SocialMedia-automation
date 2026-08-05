@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getUser, getMembership, roleCan, ACTIVE_WORKSPACE_COOKIE } from '@/lib/authz'
+import { getUser, getMembership, roleCan, canAssignRole, ACTIVE_WORKSPACE_COOKIE } from '@/lib/authz'
 
 async function requireWorkspacePermission(workspaceId: string, permission: string) {
   const user = await getUser()
@@ -53,11 +53,13 @@ export async function updateWorkspaceAction(formData: FormData): Promise<{ error
 /** Create a team invite (returns the invite link; emailing wired later). */
 export async function inviteMemberAction(formData: FormData): Promise<{ error?: string; inviteUrl?: string }> {
   const workspaceId = String(formData.get('workspaceId'))
-  const { user } = await requireWorkspacePermission(workspaceId, 'manage_team')
+  const { user, membership } = await requireWorkspacePermission(workspaceId, 'manage_team')
 
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
   const role = String(formData.get('role') ?? 'agent')
   if (!email || !['admin', 'manager', 'agent'].includes(role)) return { error: 'Valid email and role required' }
+  // Prevent privilege escalation: can't invite someone above your own role.
+  if (!canAssignRole(membership.role, role)) return { error: "You can't grant a role higher than your own." }
 
   const admin = createAdminClient()
   // Already a member?
@@ -90,12 +92,18 @@ export async function inviteMemberAction(formData: FormData): Promise<{ error?: 
 
 export async function updateMemberRoleAction(formData: FormData): Promise<void> {
   const workspaceId = String(formData.get('workspaceId'))
-  await requireWorkspacePermission(workspaceId, 'manage_team')
+  const { membership } = await requireWorkspacePermission(workspaceId, 'manage_team')
   const memberId = String(formData.get('memberId'))
   const role = String(formData.get('role'))
   if (!['admin', 'manager', 'agent'].includes(role)) throw new Error('Invalid role')
+  // Can't promote anyone to a role above your own.
+  if (!canAssignRole(membership.role, role)) throw new Error('Forbidden')
 
   const admin = createAdminClient()
+  // Also can't modify a member who currently outranks you.
+  const { data: target } = await admin.from('workspace_members').select('role').eq('id', memberId).eq('workspace_id', workspaceId).maybeSingle()
+  if (target && !canAssignRole(membership.role, target.role as string)) throw new Error('Forbidden')
+
   await admin.from('workspace_members').update({ role }).eq('id', memberId).eq('workspace_id', workspaceId)
   revalidatePath('/team')
 }

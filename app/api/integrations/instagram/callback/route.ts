@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { exchangeIgCode, igLongLivedToken, fetchInstagramProfile, subscribeInstagramWebhooks, IG_CAPS } from '@/lib/channels/instagram'
 import { getInstagramApp } from '@/lib/instagram-config'
 import { encryptToken } from '@/lib/crypto'
+import { getUser, getMembership, roleCan } from '@/lib/authz'
 
 /** Instagram Business Login callback: exchange code, store the long-lived token. */
 export async function GET(req: NextRequest) {
@@ -13,6 +14,16 @@ export async function GET(req: NextRequest) {
 
   if (!code || !workspaceId) {
     return NextResponse.redirect(new URL('/settings/channels?error=oauth_failed', req.url))
+  }
+
+  // The signed-in user must be a member of the target workspace with permission to
+  // manage it — `state` (the workspace id) is attacker-controllable, so without
+  // this an attacker could graft an Instagram account onto someone else's workspace.
+  const user = await getUser()
+  if (!user) return NextResponse.redirect(new URL('/login', req.url))
+  const membership = await getMembership(user.id, workspaceId)
+  if (!membership || !roleCan(membership.role, 'manage_workspace')) {
+    return NextResponse.redirect(new URL('/settings/channels?error=forbidden', req.url))
   }
 
   const admin = createAdminClient()

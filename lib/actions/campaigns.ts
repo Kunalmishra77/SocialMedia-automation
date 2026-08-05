@@ -8,6 +8,7 @@ import { sendTelegramMessage } from '@/lib/channels/telegram'
 import { windowStatus } from '@/lib/inbox'
 import { callAI, aiConfigured } from '@/lib/ai/client'
 import { decryptToken } from '@/lib/crypto'
+import { remainingMessages } from '@/lib/quota'
 
 /** AI: draft a campaign broadcast message from a goal. */
 export async function aiGenerateCampaignMessage(goal: string): Promise<{ message?: string; error?: string }> {
@@ -93,7 +94,11 @@ export async function runCampaignAction(formData: FormData): Promise<void> {
   let failed = 0
   let filtered = 0
 
+  // Plan message headroom for the month — stop cleanly when exhausted.
+  let budget = await remainingMessages(admin, workspaceId)
+
   for (const conv of convs ?? []) {
+    if (budget <= 0) break // over plan message limit — don't blast past the cap
     const contact = conv.contacts as unknown as { id: string; is_blocked: boolean; opted_out: boolean } | null
     if (!contact || contact.is_blocked || contact.opted_out) {
       filtered++
@@ -136,6 +141,7 @@ export async function runCampaignAction(formData: FormData): Promise<void> {
 
     if (ok) {
       sent++
+      budget--
       await recordRecipient(admin, id, workspaceId, contact.id, conv.id, 'sent')
     } else {
       failed++

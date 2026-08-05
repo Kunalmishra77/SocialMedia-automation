@@ -7,6 +7,7 @@ import { getAIReply } from '@/lib/ai/reply'
 import { aiConfigured } from '@/lib/ai/client'
 import { applyInboxRules } from '@/lib/inbox-rules'
 import { runFlowsForDM } from '@/lib/flow-runner'
+import { withinAiQuota } from '@/lib/quota'
 
 /**
  * Telegram webhook. One endpoint per connected bot (channel_account id in the path).
@@ -28,9 +29,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!account || !account.is_active) return NextResponse.json({ ok: true })
 
   // Constant-time compare of the per-bot webhook secret (mitigates timing attacks).
+  // Fails CLOSED: every bot gets a secret on connect, so a missing/undecryptable
+  // stored secret means we cannot authenticate the sender — reject rather than
+  // process forged updates.
   const secret = req.headers.get('x-telegram-bot-api-secret-token') ?? ''
   const storedSecret = decryptToken(account.webhook_secret as string | null)
-  if (storedSecret) {
+  if (!storedSecret) return NextResponse.json({ ok: true })
+  {
     const a = Buffer.from(secret)
     const b = Buffer.from(storedSecret)
     if (a.length !== b.length || !timingSafeEqual(a, b)) {
@@ -153,7 +158,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       admin.from('conversations').select('bot_paused').eq('id', conversationId).maybeSingle(),
     ])
     const autoReply = (ws?.settings as { auto_reply_enabled?: boolean } | null)?.auto_reply_enabled
-    if (autoReply && !conv?.bot_paused) {
+    if (autoReply && !conv?.bot_paused && (await withinAiQuota(admin, workspaceId))) {
       const reply = await getAIReply(admin, workspaceId, conversationId, text)
       if (reply) {
         const sent = await sendTelegramMessage(tgToken, chatId, reply)

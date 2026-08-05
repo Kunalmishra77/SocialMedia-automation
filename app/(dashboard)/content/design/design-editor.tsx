@@ -138,7 +138,7 @@ export function DesignEditor() {
     try { const cl = await o.clone(); cl.set({ left: (o.left ?? 0) + 18, top: (o.top ?? 0) + 18 }); c.add(cl); c.setActiveObject(cl); c.renderAll() } catch { /* ignore */ }
   }
   const layer = (dir: 'front' | 'back') => { const c = liveCanvas(), o = c?.getActiveObject(); if (!c || !o) return; dir === 'front' ? c.bringObjectToFront(o) : c.sendObjectToBack(o); c.renderAll() }
-  const alignX = (mode: 'l' | 'c' | 'r') => apply((o) => { const w = o.getScaledWidth?.() ?? o.width ?? 0; o.set('left', mode === 'l' ? 24 : mode === 'c' ? (W - w) / 2 : W - w - 24) })
+  const alignX = (mode: 'l' | 'c' | 'r') => { const cw = liveCanvas()?.getWidth() ?? W; apply((o) => { const w = o.getScaledWidth?.() ?? o.width ?? 0; o.set('left', mode === 'l' ? 24 : mode === 'c' ? (cw - w) / 2 : cw - w - 24) }) }
   const setOpacity = (v: number) => { apply((o) => o.set('opacity', v)); setSel((s) => ({ ...s, opacity: v })) }
 
   async function generate(text?: string) {
@@ -209,7 +209,7 @@ export function DesignEditor() {
     setPosterBusy(true); setErr(null)
     const res = await regeneratePosterAction(posterPromptRef.current, shape)
     setPosterBusy(false)
-    if (!res.url) return
+    if (!res.url) { setErr(res.error ?? 'Regeneration failed — please retry.'); return }
     const fabric = fabRef.current, canvas = liveCanvas(); if (!fabric || !canvas) return
     const d = POSTER_DIMS[shape] ?? POSTER_DIMS.portrait
     try {
@@ -251,7 +251,7 @@ export function DesignEditor() {
     setRegen(true)
     const res = await regenerateHeroAction(p.design.heroPrompt)
     setRegen(false)
-    if (!res.url) return
+    if (!res.url) { setErr(res.error ?? 'Image regeneration failed — please retry.'); return }
     p.heroUrl = res.url
     await render(template)
   }

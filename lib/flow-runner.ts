@@ -42,6 +42,10 @@ export async function runFlowsForDM(
     if (steps.length === 0) continue
 
     for (const step of steps) {
+      // A 'wait' step must PAUSE the flow. There is no delayed scheduler yet, so we
+      // stop here rather than firing the post-wait steps immediately (which turned a
+      // "wait 24h → send" into an instant send). Steps before the wait still run.
+      if (step.type === 'wait') break
       if (step.type === 'send_message' && step.message) {
         if (opts.channel === 'telegram') await sendTelegramMessage(opts.token, opts.recipient, step.message)
         else await sendInstagramDM(opts.token, opts.recipient, step.message)
@@ -56,7 +60,6 @@ export async function runFlowsForDM(
       } else if (step.type === 'assign') {
         await admin.from('conversations').update({ status: 'assigned' }).eq('id', opts.conversationId)
       }
-      // 'wait' steps are skipped in this synchronous MVP.
     }
     await admin.from('workflow_automations').update({ run_count: (flow.run_count ?? 0) + 1, last_run_at: new Date().toISOString() }).eq('id', flow.id)
     return true // first matching flow wins

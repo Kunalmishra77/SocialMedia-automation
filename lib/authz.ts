@@ -21,6 +21,19 @@ export function roleCan(role: MembershipRole, permission: string): boolean {
 
 export type MembershipRole = 'super_admin' | 'admin' | 'manager' | 'agent'
 
+/** Privilege rank — higher = more powerful. Used to prevent privilege escalation. */
+const ROLE_RANK: Record<MembershipRole, number> = { super_admin: 4, admin: 3, manager: 2, agent: 1 }
+
+/**
+ * Whether `actorRole` may grant `targetRole`. An actor can never assign a role
+ * ranked above their own (a manager could otherwise mint admins and escalate).
+ */
+export function canAssignRole(actorRole: MembershipRole, targetRole: string): boolean {
+  const target = ROLE_RANK[targetRole as MembershipRole]
+  if (!target) return false
+  return target <= ROLE_RANK[actorRole]
+}
+
 export interface WorkspaceMembership {
   workspaceId: string
   name: string

@@ -28,7 +28,13 @@ export async function extractText(file: File): Promise<{ text: string; fileType:
       return { text: parts.join('\n\n'), fileType: ext === 'xls' ? 'xls' : 'xlsx' }
     }
 
-    if (ext === 'docx' || file.type.includes('word') || file.type.includes('officedocument.wordprocessing')) {
+    // Legacy .doc (binary application/msword) is NOT supported by mammoth — reject
+    // clearly instead of dead-ending on a cryptic zip parse error.
+    if (ext === 'doc' || file.type === 'application/msword') {
+      return { text: '', fileType: 'doc', error: 'Legacy .doc files aren’t supported. Please save as .docx or PDF and re-upload.' }
+    }
+
+    if (ext === 'docx' || file.type.includes('officedocument.wordprocessing')) {
       const mammoth = await import('mammoth')
       const res = await mammoth.extractRawText({ buffer: buf })
       return { text: res.value ?? '', fileType: 'docx' }

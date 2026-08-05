@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const primary = sanitizeHex(q.get('c')) || '#ea6a24'
   const secondary = sanitizeHex(q.get('c2')) || '#16233a'
   const brand = (q.get('b') || '').slice(0, 60)
-  const logo = q.get('logo') || ''
+  const logo = safeImageUrl(q.get('logo'))
 
   return new ImageResponse(
     (
@@ -71,11 +71,33 @@ export async function GET(req: NextRequest) {
         </div>
       </div>
     ),
-    { width: 1080, height: 1080 },
+    {
+      width: 1080,
+      height: 1080,
+      headers: { 'Cache-Control': 'public, max-age=3600, s-maxage=86400, immutable' },
+    },
   )
 }
 
 /** Only allow #RGB / #RRGGBB to flow into inline styles. */
 function sanitizeHex(v: string | null): string | null {
   return v && /^#?[0-9a-fA-F]{3,8}$/.test(v) ? (v.startsWith('#') ? v : `#${v}`) : null
+}
+
+/**
+ * Only fetch logos from our OWN storage/app origins. This endpoint is public and
+ * the image engine fetches this URL server-side, so an arbitrary `logo` value
+ * would be an SSRF/image-proxy. Anything off-allowlist is dropped.
+ */
+function safeImageUrl(v: string | null): string {
+  if (!v) return ''
+  let u: URL
+  try { u = new URL(v) } catch { return '' }
+  if (u.protocol !== 'https:') return ''
+  const allow = [process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_APP_URL]
+    .map((b) => { try { return b ? new URL(b).host : '' } catch { return '' } })
+    .filter(Boolean)
+  const host = u.host.toLowerCase()
+  const ok = allow.includes(host) || host.endsWith('.supabase.co') || host.endsWith('.supabase.in')
+  return ok ? v : ''
 }

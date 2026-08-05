@@ -2,14 +2,21 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAIReply } from '@/lib/ai/reply'
 import { aiConfigured } from '@/lib/ai/client'
+import { withinAiQuota } from '@/lib/quota'
+
+/** Max inbound message length accepted from the public widget. */
+const MAX_WIDGET_MESSAGE = 2000
+/** Per-session inbound message cap within the rate window. */
+const RATE_LIMIT = 12
+const RATE_WINDOW_MS = 60_000
 
 /** Public website-widget chat endpoint: visitor message → store + AI reply. */
 export async function POST(req: Request, { params }: { params: Promise<{ workspaceId: string }> }) {
   const { workspaceId } = await params
   let body: { message?: string; sessionId?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad request' }, { status: 400 }) }
-  const message = (body.message ?? '').trim()
-  const sessionId = (body.sessionId ?? '').trim()
+  const message = (body.message ?? '').trim().slice(0, MAX_WIDGET_MESSAGE)
+  const sessionId = (body.sessionId ?? '').trim().slice(0, 100)
   if (!message || !sessionId) return NextResponse.json({ error: 'missing' }, { status: 400 })
 
   const admin = createAdminClient()
@@ -32,10 +39,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ workspa
     convId = c!.id
   }
 
+  // Rate limit: cap inbound messages per session per window (anti-flood / cost drain).
+  const since = new Date(Date.now() - RATE_WINDOW_MS).toISOString()
+  const { count: recent } = await admin
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('conversation_id', convId)
+    .eq('direction', 'inbound')
+    .gte('created_at', since)
+  if ((recent ?? 0) >= RATE_LIMIT) {
+    return NextResponse.json({ error: 'Too many messages — please slow down.' }, { status: 429 })
+  }
+
   await admin.from('messages').insert({ conversation_id: convId, workspace_id: workspaceId, sender_type: 'contact', direction: 'inbound', type: 'text', content: message, status: 'delivered' })
 
   let reply = "Thanks for reaching out! Our team will get back to you shortly."
-  if (aiConfigured()) {
+  if (aiConfigured() && (await withinAiQuota(admin, workspaceId))) {
     const ai = await getAIReply(admin, workspaceId, convId, message)
     if (ai) reply = ai
   }

@@ -10,6 +10,39 @@ export function aiConfigured(): boolean {
   return !!(process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY)
 }
 
+const AI_TIMEOUT_MS = 30_000
+
+/**
+ * fetch() for AI providers with a hard timeout (no more indefinite hangs) and one
+ * bounded retry on 429 / 5xx that honours Retry-After (capped). Returns the
+ * Response (even non-OK, so callers can inspect status) or null on abort/network.
+ */
+export async function aiFetch(url: string, init: RequestInit, timeoutMs = AI_TIMEOUT_MS): Promise<Response | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+    try {
+      const res = await fetch(url, { ...init, signal: ctrl.signal })
+      if ((res.status === 429 || res.status >= 500) && attempt === 0) {
+        const ra = Number(res.headers.get('retry-after'))
+        const waitMs = Math.min(Number.isFinite(ra) && ra > 0 ? ra * 1000 : 1500, 5000)
+        await new Promise((r) => setTimeout(r, waitMs))
+        continue
+      }
+      return res
+    } catch {
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 500))
+        continue
+      }
+      return null
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  return null
+}
+
 function resolveProvider(): { url: string; key: string; defaultModel: string; headers: Record<string, string> } | null {
   const openrouter = process.env.OPENROUTER_API_KEY
   const openai = process.env.OPENAI_API_KEY
@@ -58,7 +91,7 @@ export async function callAI(
 
   for (const model of models) {
     try {
-      const res = await fetch(provider.url, {
+      const res = await aiFetch(provider.url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -72,7 +105,7 @@ export async function callAI(
           temperature: opts.temperature ?? 0.6,
         }),
       })
-      if (!res.ok) continue
+      if (!res || !res.ok) continue
       const data = await res.json()
       const content = data.choices?.[0]?.message?.content?.trim()
       if (content) return content
@@ -90,7 +123,7 @@ export async function callVision(imageUrl: string, prompt: string): Promise<stri
   const isOpenRouter = provider.url.includes('openrouter')
   const model = isOpenRouter ? 'openai/gpt-4o-mini' : 'gpt-4o-mini'
   try {
-    const res = await fetch(provider.url, {
+    const res = await aiFetch(provider.url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${provider.key}`, ...provider.headers },
       body: JSON.stringify({
@@ -99,7 +132,7 @@ export async function callVision(imageUrl: string, prompt: string): Promise<stri
         messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageUrl } }] }],
       }),
     })
-    if (!res.ok) return null
+    if (!res || !res.ok) return null
     const data = await res.json()
     return data.choices?.[0]?.message?.content?.trim() ?? null
   } catch {
@@ -109,18 +142,32 @@ export async function callVision(imageUrl: string, prompt: string): Promise<stri
 
 /** Generate a 1536-dim embedding for text (OpenAI only), or null. */
 export async function generateEmbedding(text: string): Promise<number[] | null> {
+  const [first] = await generateEmbeddings([text])
+  return first ?? null
+}
+
+/**
+ * Batch embeddings in ONE request (the /embeddings endpoint accepts an array).
+ * Returns one vector per input (null for any that failed). Far fewer round-trips
+ * than one call per chunk — critical for document ingestion.
+ */
+export async function generateEmbeddings(texts: string[]): Promise<(number[] | null)[]> {
   const key = process.env.OPENAI_API_KEY
-  if (!key) return null
+  if (!key || texts.length === 0) return texts.map(() => null)
   try {
-    const res = await fetch('https://api.openai.com/v1/embeddings', {
+    const res = await aiFetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: 'text-embedding-3-small', input: text.slice(0, 8000) }),
+      body: JSON.stringify({ model: 'text-embedding-3-small', input: texts.map((t) => t.slice(0, 8000)) }),
     })
-    if (!res.ok) return null
+    if (!res || !res.ok) return texts.map(() => null)
     const data = await res.json()
-    return data.data?.[0]?.embedding ?? null
+    const out: (number[] | null)[] = texts.map(() => null)
+    for (const row of data.data ?? []) {
+      if (typeof row.index === 'number' && Array.isArray(row.embedding)) out[row.index] = row.embedding
+    }
+    return out
   } catch {
-    return null
+    return texts.map(() => null)
   }
 }

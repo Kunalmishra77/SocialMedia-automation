@@ -130,9 +130,10 @@ export async function ingestDocumentAction(formData: FormData): Promise<{ error?
     if (content.length < 20) return { error: 'Paste at least a paragraph of text, or choose a file.' }
   }
 
-  const { chunks, embedded } = await ingestDocument(admin, workspaceId, filename, fileType, content)
+  const { chunks, embedded, truncated } = await ingestDocument(admin, workspaceId, filename, fileType, content)
   revalidatePath('/knowledge-base')
-  return { ok: `Ingested “${filename}” — ${chunks} chunk(s)${embedded < chunks ? ` · ${embedded} embedded (add an AI key for semantic search)` : ' embedded ✓'}` }
+  const trunc = truncated ? ' (large file — only the first part was indexed; split it for full coverage)' : ''
+  return { ok: `Ingested “${filename}” — ${chunks} chunk(s)${embedded < chunks ? ` · ${embedded} embedded (add an AI key for semantic search)` : ' embedded ✓'}${trunc}` }
 }
 
 /** Delete all chunks of an ingested document. */

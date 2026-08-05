@@ -1,6 +1,7 @@
 export interface PlanLimits {
   maxAgents: number
   maxMessages: number // per month
+  maxAiEvents: number // AI replies + embeddings per month
   maxContacts: number
   maxCampaigns: number
   maxChannels: number
@@ -10,10 +11,10 @@ export interface PlanLimits {
 
 // -1 = unlimited
 export const PLAN_LIMITS: Record<string, PlanLimits> = {
-  free:       { maxAgents: 2,  maxMessages: 1_000,   maxContacts: 500,    maxCampaigns: 2,   maxChannels: 1,  maxFlows: 1,  maxKbEntries: 20 },
-  starter:    { maxAgents: 3,  maxMessages: 5_000,   maxContacts: 2_000,  maxCampaigns: 10,  maxChannels: 2,  maxFlows: 3,  maxKbEntries: 50 },
-  pro:        { maxAgents: 10, maxMessages: 25_000,  maxContacts: 15_000, maxCampaigns: 50,  maxChannels: 3,  maxFlows: 20, maxKbEntries: 500 },
-  enterprise: { maxAgents: 25, maxMessages: 100_000, maxContacts: 75_000, maxCampaigns: 200, maxChannels: 10, maxFlows: 50, maxKbEntries: 2000 },
+  free:       { maxAgents: 2,  maxMessages: 1_000,   maxAiEvents: 1_000,   maxContacts: 500,    maxCampaigns: 2,   maxChannels: 1,  maxFlows: 1,  maxKbEntries: 20 },
+  starter:    { maxAgents: 3,  maxMessages: 5_000,   maxAiEvents: 5_000,   maxContacts: 2_000,  maxCampaigns: 10,  maxChannels: 2,  maxFlows: 3,  maxKbEntries: 50 },
+  pro:        { maxAgents: 10, maxMessages: 25_000,  maxAiEvents: 25_000,  maxContacts: 15_000, maxCampaigns: 50,  maxChannels: 3,  maxFlows: 20, maxKbEntries: 500 },
+  enterprise: { maxAgents: 25, maxMessages: 100_000, maxAiEvents: 100_000, maxContacts: 75_000, maxCampaigns: 200, maxChannels: 10, maxFlows: 50, maxKbEntries: 2000 },
 }
 
 export function planLimits(plan: string): PlanLimits {

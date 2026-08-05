@@ -9,6 +9,13 @@ import { getBrandProfile } from '@/lib/ai/brand'
 import { generateContent, generateDesign, expandPoster, describeReference, type PlatformVariants, type PostDesign } from '@/lib/ai/content-gen'
 import { generatePostImage, generateHeroImage, generatePoster, generatePosterWithAssets } from '@/lib/ai/image-gen'
 import { retrieveKbContext } from '@/lib/ai/reply'
+import { withinAiQuota } from '@/lib/quota'
+import { logUsage } from '@/lib/usage'
+
+/** Guard an AI image/generation action against the workspace plan limit. */
+async function requireAiQuota(admin: ReturnType<typeof createAdminClient>, workspaceId: string): Promise<string | null> {
+  return (await withinAiQuota(admin, workspaceId)) ? null : 'You’ve reached this month’s AI limit — upgrade your plan to keep generating.'
+}
 
 /** IG feed post caption from the instagram variant (falls back to first variant). */
 function igCaptionFrom(variants: PlatformVariants): { caption: string; hashtags: string[] } {
@@ -357,11 +364,14 @@ export async function generateDesignAction(brief: string): Promise<{ payload?: D
   const b = brief.trim()
   if (!b) return { error: 'Enter a topic or idea.' }
   const admin = createAdminClient()
+  const overQuota = await requireAiQuota(admin, workspaceId)
+  if (overQuota) return { error: overQuota }
   const brand = await getBrandProfile(admin, workspaceId)
   const kbContext = await retrieveKbContext(admin, workspaceId, b, false)
   const design = await generateDesign({ brand, brief: b, kbContext })
   if (!design) return { error: 'Could not generate — try rephrasing the topic.' }
   const heroUrl = await generateHeroImage(admin, workspaceId, design.heroPrompt, brand, '1024x1024')
+  await logUsage(admin, workspaceId, 'ai_generate')
   return {
     payload: {
       design, heroUrl,
@@ -373,9 +383,14 @@ export async function generateDesignAction(brief: string): Promise<{ payload?: D
 /** Regenerate just the hero photo for a given prompt. */
 export async function regenerateHeroAction(prompt: string): Promise<{ url?: string | null; error?: string }> {
   const { workspaceId } = await ctx()
+  if (!aiConfigured()) return { error: 'Add an OpenAI key to generate images.' }
   const admin = createAdminClient()
+  const overQuota = await requireAiQuota(admin, workspaceId)
+  if (overQuota) return { error: overQuota }
   const brand = await getBrandProfile(admin, workspaceId)
   const url = await generateHeroImage(admin, workspaceId, prompt, brand, '1024x1024')
+  if (!url) return { error: 'Image generation failed — please retry.' }
+  await logUsage(admin, workspaceId, 'ai_generate')
   return { url }
 }
 
@@ -396,6 +411,8 @@ export async function generatePosterAction(brief: string, shape = 'portrait', re
   const b = brief.trim()
   if (!b) return { error: 'Enter a topic or brief.' }
   const admin = createAdminClient()
+  const overQuota = await requireAiQuota(admin, workspaceId)
+  if (overQuota) return { error: overQuota }
   const brand = await getBrandProfile(admin, workspaceId)
   const kbContext = await retrieveKbContext(admin, workspaceId, b, false)
   const referenceStyle = refUrl ? (await describeReference(refUrl)) ?? undefined : undefined
@@ -410,6 +427,7 @@ export async function generatePosterAction(brief: string, shape = 'portrait', re
     ? (await generatePosterWithAssets(admin, workspaceId, prompt, assets, size)) ?? (await generatePoster(admin, workspaceId, prompt, size))
     : await generatePoster(admin, workspaceId, prompt, size)
   if (!url) return { error: 'Image generation failed. Ensure your OpenAI account has gpt-image-1 access (may need org verification), then retry.' }
+  await logUsage(admin, workspaceId, 'ai_generate')
   // logoBaked=false → the editor overlays the exact logo automatically.
   return { poster: { url, imagePrompt: ex.imagePrompt, caption: ex.caption, hashtags: ex.hashtags, logo: brand.logo_url, logoBaked: false } }
 }
@@ -443,13 +461,18 @@ export async function uploadReferenceAction(formData: FormData): Promise<{ url?:
 /** Regenerate the poster image from an existing prompt (a fresh variation). */
 export async function regeneratePosterAction(prompt: string, shape = 'portrait'): Promise<{ url?: string | null; error?: string }> {
   const { workspaceId } = await ctx()
+  if (!aiConfigured()) return { error: 'Add an OpenAI key to generate posters.' }
   const admin = createAdminClient()
+  const overQuota = await requireAiQuota(admin, workspaceId)
+  if (overQuota) return { error: overQuota }
   const brand = await getBrandProfile(admin, workspaceId)
   const size = POSTER_SIZE[shape] ?? '1024x1536'
   const assets = brand.product_images.filter(Boolean)
   const p = assetInstruction(brand) + prompt
   const url = (assets.length ? await generatePosterWithAssets(admin, workspaceId, p, assets, size) : null)
     ?? await generatePoster(admin, workspaceId, p, size)
+  if (!url) return { error: 'Image generation failed — please retry.' }
+  await logUsage(admin, workspaceId, 'ai_generate')
   return { url }
 }
 

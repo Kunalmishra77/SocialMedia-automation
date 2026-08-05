@@ -3,8 +3,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyInternalCronCall } from '@/lib/cron-auth'
 
 /**
- * Publish due scheduled content posts and mark scheduled campaigns ready to run.
- * (Campaign delivery itself uses runCampaignAction; this promotes scheduled work.)
+ * Reports scheduled campaigns whose send time has arrived. It intentionally does
+ * NOT mutate anything: scheduled CONTENT POSTS are owned solely by the
+ * publish-content cron (which claims each row atomically). This route previously
+ * flipped due posts to `publishing` without ever publishing them, stranding them
+ * forever — that mutation has been removed. Automated campaign delivery is still
+ * operator-triggered (runCampaignAction), so we surface the due count only.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -15,17 +19,11 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const nowIso = new Date().toISOString()
 
-  // Scheduled content posts due now → mark publishing (actual publish needs IG connection).
-  const { data: duePosts } = await admin
-    .from('content_posts')
-    .select('id')
+  const { count } = await admin
+    .from('campaigns')
+    .select('id', { count: 'exact', head: true })
     .eq('status', 'scheduled')
     .lte('scheduled_at', nowIso)
-    .limit(50)
 
-  for (const p of duePosts ?? []) {
-    await admin.from('content_posts').update({ status: 'publishing' }).eq('id', p.id)
-  }
-
-  return NextResponse.json({ ok: true, posts_due: duePosts?.length ?? 0 })
+  return NextResponse.json({ ok: true, campaigns_due: count ?? 0 })
 }

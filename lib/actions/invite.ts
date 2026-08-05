@@ -56,6 +56,11 @@ export async function acceptInviteAction(
   const currentUser = await getUser()
 
   if (currentUser) {
+    // The signed-in user must be the invited recipient — an invite link is not a
+    // free pass for any logged-in account to join at the invited role.
+    if ((currentUser.email ?? '').toLowerCase() !== invite.email.toLowerCase()) {
+      return { error: `This invite is for ${invite.email}. Sign in as that account to accept it.` }
+    }
     userId = currentUser.id
   } else {
     const { data: existingProfile } = await admin

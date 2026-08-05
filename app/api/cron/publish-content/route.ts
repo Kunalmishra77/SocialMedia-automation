@@ -29,7 +29,16 @@ export async function GET(req: NextRequest) {
   }
 
   for (const post of due ?? []) {
-    await admin.from('content_posts').update({ status: 'publishing' }).eq('id', post.id)
+    // Atomic claim: only the run that flips scheduled→publishing owns this post.
+    // A concurrent/retried run gets zero rows back and skips → no double-publish.
+    const { data: claimed } = await admin
+      .from('content_posts')
+      .update({ status: 'publishing' })
+      .eq('id', post.id)
+      .eq('status', 'scheduled')
+      .select('id')
+      .maybeSingle()
+    if (!claimed) continue
 
     const { data: acct } = await admin
       .from('channel_accounts')

@@ -2,6 +2,7 @@ import 'server-only'
 
 import type { createAdminClient } from '@/lib/supabase/admin'
 import type { BrandProfile } from '@/lib/ai/brand'
+import { aiFetch } from '@/lib/ai/client'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -11,6 +12,10 @@ export interface GeneratedImage {
 }
 
 const BUCKET = 'content-media'
+/** Image generation can take 20-40s at high quality — give it a longer ceiling. */
+const IMAGE_TIMEOUT_MS = 90_000
+/** Max bytes to pull for an input asset (logo/product) — bounds memory. */
+const MAX_ASSET_BYTES = 8 * 1024 * 1024
 
 /**
  * Produce a post visual. Tries OpenAI gpt-image-1 first (real AI art, uploaded
@@ -88,11 +93,14 @@ export async function generatePosterWithAssets(admin: Admin, workspaceId: string
     let added = 0
     for (const url of assetUrls) {
       try {
-        const r = await fetch(url)
-        if (!r.ok) continue
+        const r = await aiFetch(url, {}, 15_000)
+        if (!r || !r.ok) continue
         const ct = r.headers.get('content-type') || 'image/png'
         if (ct.includes('svg')) continue // edits needs raster images
+        const len = Number(r.headers.get('content-length'))
+        if (Number.isFinite(len) && len > MAX_ASSET_BYTES) continue // too big — skip
         const buf = Buffer.from(await r.arrayBuffer())
+        if (buf.byteLength > MAX_ASSET_BYTES) continue
         form.append('image[]', new Blob([buf], { type: ct }), `asset-${added}.png`)
         added++
       } catch { /* skip this asset */ }
@@ -102,8 +110,8 @@ export async function generatePosterWithAssets(admin: Admin, workspaceId: string
     form.append('size', size)
     form.append('quality', 'high')
     form.append('n', '1')
-    const res = await fetch('https://api.openai.com/v1/images/edits', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form })
-    if (!res.ok) return null
+    const res = await aiFetch('https://api.openai.com/v1/images/edits', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form }, IMAGE_TIMEOUT_MS)
+    if (!res || !res.ok) return null
     const data = await res.json()
     const b64 = data?.data?.[0]?.b64_json
     if (!b64) return null
@@ -125,12 +133,12 @@ async function callGptImage(
   const key = process.env.OPENAI_API_KEY
   if (!key) return null
   try {
-    const res = await fetch('https://api.openai.com/v1/images/generations', {
+    const res = await aiFetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({ model: 'gpt-image-1', prompt: prompt.slice(0, 4000), size, quality, n: 1 }),
-    })
-    if (!res.ok) return null
+    }, IMAGE_TIMEOUT_MS)
+    if (!res || !res.ok) return null
     const data = await res.json()
     const b64 = data?.data?.[0]?.b64_json
     if (!b64) return null
