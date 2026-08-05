@@ -151,6 +151,7 @@ export async function updateAiSettingsAction(formData: FormData): Promise<{ ok?:
   const persona = String(formData.get('agent_persona') ?? '').trim()
   const autoReply = formData.get('auto_reply') === 'on'
   const followGate = formData.get('follow_gate') === 'on'
+  const followGateStrict = formData.get('follow_gate_strict') === 'on'
   const autoLike = formData.get('auto_like') === 'on'
   const followGateMsg = String(formData.get('follow_gate_message') ?? '').trim()
 
@@ -161,6 +162,7 @@ export async function updateAiSettingsAction(formData: FormData): Promise<{ ok?:
     agent_persona: persona,
     auto_reply_enabled: autoReply,
     follow_gate_enabled: followGate,
+    follow_gate_strict: followGateStrict,
     auto_like_comments: autoLike,
     follow_gate_message: followGateMsg || undefined,
   }

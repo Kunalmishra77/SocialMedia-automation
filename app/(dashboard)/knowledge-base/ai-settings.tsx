@@ -12,12 +12,14 @@ export function AiSettings({
   persona,
   autoReply,
   followGate = true,
+  followGateStrict = false,
   autoLike = true,
   followGateMessage = '',
 }: {
   persona: string
   autoReply: boolean
   followGate?: boolean
+  followGateStrict?: boolean
   autoLike?: boolean
   followGateMessage?: string
 }) {
@@ -72,6 +74,13 @@ export function AiSettings({
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="follow_gate" defaultChecked={followGate} />
           Follow-gate — require users to follow before continuing
+        </label>
+        <label className="flex items-start gap-2 pl-6 text-sm">
+          <input type="checkbox" name="follow_gate_strict" defaultChecked={followGateStrict} className="mt-1" />
+          <span>
+            Strict verify — only let users through when Instagram <b>confirms</b> the follow (a tap alone won’t pass).
+            <span className="mt-0.5 block text-xs text-amber-600">Needs Meta “Advanced Access”. Without it, Instagram can’t confirm follows and no one will pass — keep this OFF until Advanced Access is approved.</span>
+          </span>
         </label>
         <div>
           <Label htmlFor="follow_gate_message" className="text-xs text-muted-foreground">

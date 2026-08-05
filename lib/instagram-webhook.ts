@@ -90,12 +90,19 @@ export async function processInstagramWebhook(admin: Admin, body: { entry?: unkn
 async function handleVerifyFollow(admin: Admin, workspaceId: string, token: string, settings: Settings, igsid: string) {
   const profile = await fetchInstagramProfile(igsid, token)
   const state = followState(profile)
-  if (state === 'no') {
-    // Still provably not following — keep gating.
-    await sendInstagramButtons(token, igsid, "I still don't see you as a follower. Please hit follow and tap verify again 👇", [{ title: "I've Followed", payload: 'VERIFY_FOLLOW' }])
+
+  // STRICT mode: only a follow the API CONFIRMS ('yes') passes — a tap alone never
+  // counts. Real enforcement, but needs Meta Advanced Access (else 'yes' never
+  // comes back and no one passes). LENIENT mode (default): pass on 'yes' OR when the
+  // API genuinely can't tell us ('unknown'), trusting the tap.
+  const passes = settings.followGateStrict ? state === 'yes' : state !== 'no'
+  if (!passes) {
+    const msg = settings.followGateStrict
+      ? "I couldn't confirm your follow yet. Please make sure you've followed, then tap verify again 👇"
+      : "I still don't see you as a follower. Please hit follow and tap verify again 👇"
+    await sendInstagramButtons(token, igsid, msg, [{ title: "I've Followed", payload: 'VERIFY_FOLLOW' }])
     return
   }
-  // 'yes' (confirmed) OR 'unknown' (API can't tell us without Advanced Access) → let them through.
   await sendInstagramDM(token, igsid, '✅ Verified — thanks for following! How can I help you today? 😊')
   await markFollow(admin, workspaceId, igsid, true)
 }
@@ -212,13 +219,14 @@ interface InstagramEntry {
 }
 
 // ---------- helpers ----------
-interface Settings { autoReply: boolean; followGate: boolean; followGateMsg: string; autoLikeComments: boolean }
+interface Settings { autoReply: boolean; followGate: boolean; followGateStrict: boolean; followGateMsg: string; autoLikeComments: boolean }
 async function getSettings(admin: Admin, workspaceId: string): Promise<Settings> {
   const { data: ws } = await admin.from('workspaces').select('settings').eq('id', workspaceId).maybeSingle()
   const s = (ws?.settings ?? {}) as Record<string, unknown>
   return {
     autoReply: s.auto_reply_enabled === true,
     followGate: s.follow_gate_enabled !== false,
+    followGateStrict: s.follow_gate_strict === true,
     followGateMsg: (s.follow_gate_message as string) || "I'd love to help! My automations are exclusive to followers 🌟 Please follow and tap verify 👇",
     autoLikeComments: s.auto_like_comments !== false,
   }

@@ -45,6 +45,7 @@ export default async function KnowledgeBasePage() {
     agent_persona?: string
     auto_reply_enabled?: boolean
     follow_gate_enabled?: boolean
+    follow_gate_strict?: boolean
     auto_like_comments?: boolean
     follow_gate_message?: string
   }
@@ -68,6 +69,7 @@ export default async function KnowledgeBasePage() {
             persona={settings.agent_persona ?? ''}
             autoReply={settings.auto_reply_enabled ?? false}
             followGate={settings.follow_gate_enabled ?? true}
+            followGateStrict={settings.follow_gate_strict ?? false}
             autoLike={settings.auto_like_comments ?? true}
             followGateMessage={settings.follow_gate_message ?? ''}
           />
