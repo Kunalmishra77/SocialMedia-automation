@@ -7,11 +7,19 @@ import { logUsage } from '@/lib/usage'
 
 type Admin = ReturnType<typeof createAdminClient>
 
-/** Resolve the workspace persona (or a sensible default). */
-async function getPersona(admin: Admin, workspaceId: string): Promise<string> {
+/**
+ * Resolve the workspace persona AND its optional model override in one query.
+ * `ai_model` lets a workspace with a long, complex persona (e.g. a full sales
+ * playbook) run on a stronger model than the platform default, while cheaper
+ * workspaces stay on the default. Undefined → callAI uses the default model.
+ */
+async function getWorkspaceAi(admin: Admin, workspaceId: string): Promise<{ persona: string; model?: string }> {
   const { data: ws } = await admin.from('workspaces').select('name, settings').eq('id', workspaceId).maybeSingle()
-  return (ws?.settings as { agent_persona?: string } | null)?.agent_persona
+  const s = ws?.settings as { agent_persona?: string; ai_model?: string } | null
+  const persona = s?.agent_persona
     || `You are a helpful, friendly support agent for ${ws?.name ?? 'this business'}. Keep replies concise and warm.`
+  const model = s?.ai_model?.trim() || undefined
+  return { persona, model }
 }
 
 /**
@@ -114,7 +122,7 @@ export async function getAIReply(
 ): Promise<string | null> {
   if (!aiConfigured()) return null
 
-  const persona = await getPersona(admin, workspaceId)
+  const { persona, model } = await getWorkspaceAi(admin, workspaceId)
   const kbContext = await retrieveKbContext(admin, workspaceId, lastInboundText, true)
   const knownName = await getKnownName(admin, conversationId)
 
@@ -135,7 +143,7 @@ export async function getAIReply(
 
   const system = buildSystemPrompt(persona, kbContext, knownName)
   // temp 0.4 → less rambling/hallucination, more grounded and consistent.
-  const reply = await callAI([{ role: 'system', content: system }, ...historyMsgs], { maxTokens: 260, temperature: 0.4 })
+  const reply = await callAI([{ role: 'system', content: system }, ...historyMsgs], { model, maxTokens: 400, temperature: 0.4 })
   if (reply) await logUsage(admin, workspaceId, 'ai_reply')
   return reply
 }
@@ -163,10 +171,10 @@ export async function getSandboxReply(
   message: string,
 ): Promise<{ reply: string | null; kbContext: string; configured: boolean }> {
   if (!aiConfigured()) return { reply: null, kbContext: '', configured: false }
-  const persona = await getPersona(admin, workspaceId)
+  const { persona, model } = await getWorkspaceAi(admin, workspaceId)
   const kbContext = await retrieveKbContext(admin, workspaceId, message, false)
   const system = buildSystemPrompt(persona, kbContext)
-  const reply = await callAI([{ role: 'system', content: system }, { role: 'user', content: message }], { maxTokens: 300, temperature: 0.6 })
+  const reply = await callAI([{ role: 'system', content: system }, { role: 'user', content: message }], { model, maxTokens: 400, temperature: 0.4 })
   if (reply) await logUsage(admin, workspaceId, 'ai_reply')
   return { reply, kbContext, configured: true }
 }
