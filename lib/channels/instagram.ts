@@ -71,12 +71,18 @@ export async function sendInstagramDM(token: string, recipientIgsid: string, tex
   }
 }
 
-/** Send a DM with postback buttons (used for the follow-gate "I've Followed" flow). */
+/**
+ * Send a DM with buttons (used for the follow-gate flow). Each button is either a
+ * postback ({payload}) or a URL button ({url}) — a URL button lets the user tap
+ * straight to the profile to follow without leaving the DM thread. (Instagram has
+ * no API to make a user follow from inside chat, so a deep link to the profile is
+ * the closest possible — the user taps, follows, comes back and taps verify.)
+ */
 export async function sendInstagramButtons(
   token: string,
   recipientIgsid: string,
   text: string,
-  buttons: { title: string; payload: string }[],
+  buttons: { title: string; payload?: string; url?: string }[],
 ): Promise<boolean> {
   try {
     const res = await fetch(`${IG}/me/messages?access_token=${token}`, {
@@ -92,7 +98,11 @@ export async function sendInstagramButtons(
               elements: [{
                 title: 'Follow to continue',
                 subtitle: text,
-                buttons: buttons.map((b) => ({ type: 'postback', title: b.title, payload: b.payload })),
+                buttons: buttons.map((b) =>
+                  b.url
+                    ? { type: 'web_url', title: b.title, url: b.url }
+                    : { type: 'postback', title: b.title, payload: b.payload },
+                ),
               }],
             },
           },
@@ -103,6 +113,14 @@ export async function sendInstagramButtons(
   } catch {
     return false
   }
+}
+
+/** Build the follow-gate button set: a "Follow" URL button (if we know the handle) + verify. */
+export function followGateButtons(businessHandle: string | null): { title: string; payload?: string; url?: string }[] {
+  const buttons: { title: string; payload?: string; url?: string }[] = []
+  if (businessHandle) buttons.push({ title: '➕ Follow us', url: `https://instagram.com/${businessHandle.replace(/^@/, '')}` })
+  buttons.push({ title: "I've Followed ✓", payload: 'VERIFY_FOLLOW' })
+  return buttons
 }
 
 /** Public reply on a comment. */

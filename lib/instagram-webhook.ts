@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import { decryptToken } from '@/lib/crypto'
 import type { createAdminClient } from '@/lib/supabase/admin'
 import {
-  fetchInstagramProfile, sendInstagramDM, sendInstagramButtons,
+  fetchInstagramProfile, sendInstagramDM, sendInstagramButtons, followGateButtons,
   replyToComment, sendPrivateReply, likeComment, type InstagramProfile,
 } from '@/lib/channels/instagram'
 import { getAIReply } from '@/lib/ai/reply'
@@ -50,7 +50,7 @@ export async function processInstagramWebhook(admin: Admin, body: { entry?: unkn
     const igBusinessId = String(entry.id)
     const { data: account } = await admin
       .from('channel_accounts')
-      .select('id, workspace_id, access_token, is_active')
+      .select('id, workspace_id, access_token, is_active, handle')
       .eq('channel', 'instagram')
       .eq('external_id', igBusinessId)
       .maybeSingle()
@@ -59,24 +59,25 @@ export async function processInstagramWebhook(admin: Admin, body: { entry?: unkn
     const token = decryptToken(account.access_token)
     if (!token) continue
     const workspaceId = account.workspace_id
+    const handle = (account.handle as string | null) ?? null
     const settings = await getSettings(admin, workspaceId)
 
     try {
       // ---- Messaging events (postbacks + DMs) — process EVERY event, not just [0] ----
       for (const messaging of entry.messaging ?? []) {
         if (messaging.postback?.payload === 'VERIFY_FOLLOW') {
-          await handleVerifyFollow(admin, workspaceId, token, settings, String(messaging.sender.id))
+          await handleVerifyFollow(admin, workspaceId, token, settings, handle, String(messaging.sender.id))
           continue
         }
         if (messaging.message && !messaging.message.is_echo && messaging.message.text) {
-          await handleDm(admin, workspaceId, token, igBusinessId, account.id, settings, messaging)
+          await handleDm(admin, workspaceId, token, igBusinessId, account.id, handle, settings, messaging)
         }
       }
 
       // ---- Comments ----
       for (const change of entry.changes ?? []) {
         if (change.field !== 'comments') continue
-        await handleComment(admin, workspaceId, token, igBusinessId, account.id, settings, change.value)
+        await handleComment(admin, workspaceId, token, igBusinessId, account.id, handle, settings, change.value)
       }
     } catch (err) {
       // One bad row must not 500 the whole webhook (Meta would retry → disable it).
@@ -87,7 +88,7 @@ export async function processInstagramWebhook(admin: Admin, body: { entry?: unkn
 
 // ---------- handlers ----------
 
-async function handleVerifyFollow(admin: Admin, workspaceId: string, token: string, settings: Settings, igsid: string) {
+async function handleVerifyFollow(admin: Admin, workspaceId: string, token: string, settings: Settings, handle: string | null, igsid: string) {
   const profile = await fetchInstagramProfile(igsid, token)
   const state = followState(profile)
 
@@ -100,7 +101,7 @@ async function handleVerifyFollow(admin: Admin, workspaceId: string, token: stri
     const msg = settings.followGateStrict
       ? "I couldn't confirm your follow yet. Please make sure you've followed, then tap verify again 👇"
       : "I still don't see you as a follower. Please hit follow and tap verify again 👇"
-    await sendInstagramButtons(token, igsid, msg, [{ title: "I've Followed", payload: 'VERIFY_FOLLOW' }])
+    await sendInstagramButtons(token, igsid, msg, followGateButtons(handle))
     return
   }
   await sendInstagramDM(token, igsid, '✅ Verified — thanks for following! How can I help you today? 😊')
@@ -109,7 +110,7 @@ async function handleVerifyFollow(admin: Admin, workspaceId: string, token: stri
 
 async function handleComment(
   admin: Admin, workspaceId: string, token: string, igBusinessId: string, accountId: string,
-  settings: Settings, v: CommentValue | undefined,
+  handle: string | null, settings: Settings, v: CommentValue | undefined,
 ) {
   const commentId = v?.id
   const text: string = v?.text ?? ''
@@ -140,7 +141,7 @@ async function handleComment(
   if (settings.followGate && !contact.follow_gate_passed && followState(profile) !== 'yes') {
     const publicReply = await oneShot(admin, workspaceId, `Someone commented: "${text}". Write ONE short friendly public reply inviting them to follow and check their DMs. No hashtags.`, 'Thanks! Check your DMs 💬')
     await replyToComment(token, commentId, publicReply)
-    await sendInstagramButtons(token, fromId, settings.followGateMsg, [{ title: "I've Followed", payload: 'VERIFY_FOLLOW' }])
+    await sendInstagramButtons(token, fromId, settings.followGateMsg, followGateButtons(handle))
     await admin.from('conversations').update({ follow_gate_pending: true }).eq('id', convId)
     await saveMsg(admin, convId, workspaceId, 'system', 'outbound', '[Follow-gate sent on comment — AI paused until follow]')
     return
@@ -157,7 +158,7 @@ async function handleComment(
 
 async function handleDm(
   admin: Admin, workspaceId: string, token: string, igBusinessId: string, accountId: string,
-  settings: Settings, messaging: MessagingEvent,
+  handle: string | null, settings: Settings, messaging: MessagingEvent,
 ) {
   const igsid = String(messaging.sender.id)
   const text = messaging.message!.text!
@@ -182,7 +183,7 @@ async function handleDm(
   // Follow-gate: gate anyone we haven't confirmed as a follower (and who hasn't
   // already passed). 'unknown' is gated too — the verify step lets them through.
   if (settings.followGate && !contact.follow_gate_passed && followState(profile) !== 'yes') {
-    await sendInstagramButtons(token, igsid, settings.followGateMsg, [{ title: "I've Followed", payload: 'VERIFY_FOLLOW' }])
+    await sendInstagramButtons(token, igsid, settings.followGateMsg, followGateButtons(handle))
     await admin.from('conversations').update({ follow_gate_pending: true }).eq('id', convId)
     await saveMsg(admin, convId, workspaceId, 'system', 'outbound', '[Follow-gate sent — AI paused until follow]')
     return
