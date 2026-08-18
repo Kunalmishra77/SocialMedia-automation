@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PageHeader } from '@/components/dashboard/page-header'
+import { ExportButton } from '@/components/dashboard/export-button'
 import { AddContact } from './add-contact'
 
 export default async function ContactsPage({
@@ -27,7 +28,11 @@ export default async function ContactsPage({
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <PageHeader title="Contacts" subtitle={`${contacts?.length ?? 0} shown`} action={<AddContact />} />
+      <PageHeader
+        title="Contacts"
+        subtitle={`${contacts?.length ?? 0} shown`}
+        action={<div className="flex items-center gap-2"><ExportButton type="contacts" label="Export contacts" /><AddContact /></div>}
+      />
 
       <form className="flex gap-2">
         <input

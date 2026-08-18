@@ -3,6 +3,7 @@ import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageHeader } from '@/components/dashboard/page-header'
+import { ExportButton } from '@/components/dashboard/export-button'
 import { platformByKey } from '@/lib/platforms'
 
 async function count(admin: ReturnType<typeof createAdminClient>, table: string, workspaceId: string, extra?: (q: any) => any) {
@@ -111,12 +112,14 @@ export default async function AnalyticsPage() {
 
       <Card>
         <CardHeader><CardTitle className="text-base">Reports &amp; export</CardTitle></CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {['contacts', 'leads', 'conversations'].map((t) => (
-            <a key={t} href={`/api/export/${t}`} className="rounded-md border border-input px-3 py-1.5 text-sm capitalize hover:bg-muted">
-              Export {t} (CSV)
-            </a>
-          ))}
+        <CardContent className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <ExportButton type="contacts" label="Contacts" />
+            <ExportButton type="leads" label="Leads" />
+            <ExportButton type="conversations" label="Conversations" />
+            <ExportButton type="messages" label="Message history" />
+          </div>
+          <p className="text-xs text-muted-foreground">Downloads a CSV (opens in Excel / Google Sheets) with all your data, ready to share.</p>
         </CardContent>
       </Card>
     </div>
