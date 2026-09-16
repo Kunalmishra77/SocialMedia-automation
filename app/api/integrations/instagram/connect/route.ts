@@ -6,17 +6,20 @@ import { getUser, getActiveMembership } from '@/lib/authz'
 
 /** Start the Instagram Business Login flow using the workspace's own app id. */
 export async function GET(req: NextRequest) {
+  // Behind the proxy req.url is the internal 0.0.0.0:3000 host — always redirect
+  // via the public base so the user never lands on an unreachable URL.
+  const base = (process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin).replace(/\/$/, '')
+  const redir = (path: string) => NextResponse.redirect(new URL(path, base))
+
   const user = await getUser()
-  if (!user) return NextResponse.redirect(new URL('/login', req.url))
+  if (!user) return redir('/login')
   const { active } = await getActiveMembership(user.id)
-  if (!active) return NextResponse.redirect(new URL('/workspace/new', req.url))
+  if (!active) return redir('/workspace/new')
 
   const admin = createAdminClient()
   const app = await getInstagramApp(admin, active.workspaceId)
-  if (!app) {
-    return NextResponse.redirect(new URL('/settings/channels?error=ig_not_configured', req.url))
-  }
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin
+  if (!app) return redir('/settings/channels?error=ig_not_configured')
+
   const redirectUri = `${base}/api/integrations/instagram/callback`
   return NextResponse.redirect(instagramAuthUrl(redirectUri, active.workspaceId, app.appId))
 }
