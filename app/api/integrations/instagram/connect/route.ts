@@ -3,12 +3,13 @@ import { instagramAuthUrl } from '@/lib/channels/instagram'
 import { getInstagramApp } from '@/lib/instagram-config'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership } from '@/lib/authz'
+import { publicBase } from '@/lib/public-url'
 
 /** Start the Instagram Business Login flow using the workspace's own app id. */
 export async function GET(req: NextRequest) {
   // Behind the proxy req.url is the internal 0.0.0.0:3000 host — always redirect
   // via the public base so the user never lands on an unreachable URL.
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin).replace(/\/$/, '')
+  const base = publicBase(req)
   const redir = (path: string) => NextResponse.redirect(new URL(path, base))
 
   const user = await getUser()

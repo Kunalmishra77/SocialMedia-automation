@@ -4,6 +4,7 @@ import { exchangeIgCode, igLongLivedToken, fetchInstagramProfile, fetchIgMe, sub
 import { getInstagramApp } from '@/lib/instagram-config'
 import { encryptToken } from '@/lib/crypto'
 import { getUser, getMembership, roleCan } from '@/lib/authz'
+import { publicBase } from '@/lib/public-url'
 
 /** Instagram Business Login callback: exchange code, store the long-lived token. */
 export async function GET(req: NextRequest) {
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
   const workspaceId = url.searchParams.get('state')
   // Always build redirects from the PUBLIC base — behind the reverse proxy req.url
   // resolves to the internal 0.0.0.0:3000 host, which shows the user an error page.
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? url.origin).replace(/\/$/, '')
+  const base = publicBase(req)
   const redir = (path: string) => NextResponse.redirect(new URL(path, base))
 
   if (!code || !workspaceId) return redir('/settings/channels?error=oauth_failed')
