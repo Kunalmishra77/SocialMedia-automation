@@ -43,26 +43,35 @@ export async function aiFetch(url: string, init: RequestInit, timeoutMs = AI_TIM
   return null
 }
 
-function resolveProvider(): { url: string; key: string; defaultModel: string; headers: Record<string, string> } | null {
+interface Provider { url: string; key: string; defaultModel: string; headers: Record<string, string>; isOpenRouter: boolean }
+
+/**
+ * All configured chat providers, in preference order. Returning a LIST (not one)
+ * means a dead/credit-exhausted OpenRouter key no longer silently kills every
+ * reply: callAI falls through to OpenAI. This matters because embeddings + images
+ * use OpenAI directly, so an OpenRouter-only chat path can fail while everything
+ * else "looks fine".
+ */
+function resolveProviders(): Provider[] {
+  const list: Provider[] = []
   const openrouter = process.env.OPENROUTER_API_KEY
   const openai = process.env.OPENAI_API_KEY
-  if (openrouter) {
-    return {
-      url: 'https://openrouter.ai/api/v1/chat/completions',
-      key: openrouter,
-      defaultModel: process.env.AI_MODEL ?? 'openai/gpt-4o-mini',
-      headers: { 'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000' },
-    }
-  }
-  if (openai) {
-    return {
-      url: 'https://api.openai.com/v1/chat/completions',
-      key: openai,
-      defaultModel: process.env.AI_MODEL ?? 'gpt-4o-mini',
-      headers: {},
-    }
-  }
-  return null
+  if (openrouter) list.push({
+    url: 'https://openrouter.ai/api/v1/chat/completions', key: openrouter,
+    defaultModel: process.env.AI_MODEL ?? 'openai/gpt-4o-mini',
+    headers: { 'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000' },
+    isOpenRouter: true,
+  })
+  if (openai) list.push({
+    url: 'https://api.openai.com/v1/chat/completions', key: openai,
+    defaultModel: process.env.AI_MODEL ?? 'gpt-4o-mini',
+    headers: {}, isOpenRouter: false,
+  })
+  return list
+}
+
+function resolveProvider(): Provider | null {
+  return resolveProviders()[0] ?? null
 }
 
 /** OpenRouter free-tier fallbacks tried in order when the primary model fails. */
@@ -81,36 +90,42 @@ export async function callAI(
   messages: ChatMessage[],
   opts: { model?: string; maxTokens?: number; temperature?: number } = {},
 ): Promise<string | null> {
-  const provider = resolveProvider()
-  if (!provider) return null
+  const providers = resolveProviders()
+  if (providers.length === 0) return null
 
-  const isOpenRouter = provider.url.includes('openrouter')
-  const models = [opts.model ?? provider.defaultModel, ...(isOpenRouter ? OPENROUTER_FALLBACKS : [])].filter(
-    (m, i, a) => m && a.indexOf(m) === i,
-  ) as string[]
+  for (const provider of providers) {
+    // On OpenRouter, a bare OpenAI model id (e.g. "gpt-4o") isn't valid, so drop
+    // the override there and rely on the provider fallbacks; on OpenAI use it as-is.
+    const primary = provider.isOpenRouter
+      ? (opts.model?.includes('/') ? opts.model : provider.defaultModel)
+      : (opts.model ?? provider.defaultModel)
+    const models = [primary, ...(provider.isOpenRouter ? OPENROUTER_FALLBACKS : [])].filter(
+      (m, i, a) => m && a.indexOf(m) === i,
+    ) as string[]
 
-  for (const model of models) {
-    try {
-      const res = await aiFetch(provider.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${provider.key}`,
-          ...provider.headers,
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          max_tokens: opts.maxTokens ?? 400,
-          temperature: opts.temperature ?? 0.6,
-        }),
-      })
-      if (!res || !res.ok) continue
-      const data = await res.json()
-      const content = data.choices?.[0]?.message?.content?.trim()
-      if (content) return content
-    } catch {
-      /* try next model */
+    for (const model of models) {
+      try {
+        const res = await aiFetch(provider.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${provider.key}`,
+            ...provider.headers,
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            max_tokens: opts.maxTokens ?? 400,
+            temperature: opts.temperature ?? 0.6,
+          }),
+        })
+        if (!res || !res.ok) continue
+        const data = await res.json()
+        const content = data.choices?.[0]?.message?.content?.trim()
+        if (content) return content
+      } catch {
+        /* try next model / provider */
+      }
     }
   }
   return null
