@@ -1,12 +1,66 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Activity, Zap, ListChecks, Repeat, AlertTriangle, Plug } from 'lucide-react'
+import { Activity, Zap, ListChecks, Repeat, AlertTriangle, Check, X, AlertCircle } from 'lucide-react'
 import { requireUser, getActiveMembership } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { Card, CardContent } from '@/components/ui/card'
 
 const DAY = 86400_000
+
+type CheckState = 'ok' | 'warn' | 'bad'
+interface Check { state: CheckState; label: string; hint: string }
+
+/** The end-to-end checks that decide whether the bot actually works for a client. */
+async function botReadiness(admin: ReturnType<typeof createAdminClient>, ws: string): Promise<Check[]> {
+  const [wsRow, igAcct, vecTotal, vecEmb, kbCount, lastIn, lastBot] = await Promise.all([
+    admin.from('workspaces').select('settings').eq('id', ws).maybeSingle(),
+    admin.from('channel_accounts').select('external_id, handle, is_active').eq('workspace_id', ws).eq('channel', 'instagram').maybeSingle(),
+    admin.from('vector_documents').select('id', { count: 'exact', head: true }).eq('workspace_id', ws),
+    admin.from('vector_documents').select('id', { count: 'exact', head: true }).eq('workspace_id', ws).not('embedding', 'is', null),
+    admin.from('knowledge_base').select('id', { count: 'exact', head: true }).eq('workspace_id', ws),
+    admin.from('messages').select('created_at').eq('workspace_id', ws).eq('direction', 'inbound').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    admin.from('messages').select('created_at').eq('workspace_id', ws).eq('sender_type', 'bot').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+  ])
+  const s = (wsRow.data?.settings ?? {}) as Record<string, unknown>
+  const ig = igAcct.data
+  const igConnected = !!ig?.is_active
+  const igIdWarn = igConnected && !String(ig?.external_id ?? '').startsWith('17841')
+  const vecN = vecTotal.count ?? 0, embN = vecEmb.count ?? 0, kbN = kbCount.count ?? 0
+  const hasKnowledge = embN > 0 || kbN > 0
+  const kbBroken = vecN > 0 && embN === 0
+  const personaOk = String(s.agent_persona ?? '').length > 20
+  const autoReply = s.auto_reply_enabled === true
+  const strictWarn = s.follow_gate_enabled !== false && s.follow_gate_strict === true
+  const gotDm = !!lastIn.data
+  const gotReply = !!lastBot.data
+
+  return [
+    {
+      state: !igConnected ? 'bad' : igIdWarn ? 'warn' : 'ok',
+      label: 'Instagram connected',
+      hint: !igConnected ? 'Connect it in Settings → Channels' : igIdWarn ? 'Reconnect — stored account id looks wrong, webhooks may not route' : `@${ig?.handle ?? 'connected'}`,
+    },
+    { state: personaOk ? 'ok' : 'bad', label: 'AI persona set', hint: personaOk ? 'ready' : 'Add a persona in Knowledge Base → AI settings' },
+    {
+      state: kbBroken ? 'warn' : hasKnowledge ? 'ok' : 'bad',
+      label: 'Knowledge base ready',
+      hint: kbBroken ? `${vecN} chunks uploaded but NOT embedded — re-upload (needs a valid OpenAI key)` : hasKnowledge ? `${embN} chunks + ${kbN} entries` : 'Upload a KB file or add entries',
+    },
+    { state: autoReply ? 'ok' : 'bad', label: 'Auto-reply enabled', hint: autoReply ? 'on' : 'Turn it on in Knowledge Base → AI settings' },
+    {
+      state: gotDm ? 'ok' : igConnected ? 'warn' : 'bad',
+      label: 'Receiving DMs (webhooks)',
+      hint: gotDm ? 'yes' : 'No DMs received yet — send a test DM. If none arrive, the account isn’t an Instagram Tester / webhook isn’t delivering.',
+    },
+    {
+      state: gotReply ? 'ok' : gotDm ? 'warn' : 'bad',
+      label: 'AI replying',
+      hint: gotReply ? 'yes' : gotDm ? 'DMs arrive but no AI reply — check OPENAI_API_KEY (remove a dead OPENROUTER_API_KEY) or follow-gate' : 'Waiting for the first DM',
+    },
+    ...(strictWarn ? [{ state: 'warn' as CheckState, label: 'Strict follow-gate is ON', hint: 'Without Meta Advanced Access nobody can pass — turn strict off or complete App Review' }] : []),
+  ]
+}
 
 function timeAgo(iso: string | null): string {
   if (!iso) return 'never'
@@ -36,6 +90,8 @@ export default async function AutomationHealthPage() {
   const rules = rulesRes.data ?? []
   const seqs = seqRes.data ?? []
   const channels = chanRes.data ?? []
+  const readiness = await botReadiness(admin, ws)
+  const readyCount = readiness.filter((c) => c.state === 'ok').length
 
   // Channel token issues affect any automation depending on that channel.
   const tokenIssues = channels.filter((c) => c.is_active && c.token_expires_at && new Date(c.token_expires_at).getTime() < Date.now() + 7 * DAY)
@@ -52,6 +108,34 @@ export default async function AutomationHealthPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title="Automation Health" subtitle="Know whether your automations are actually running." />
+
+      {/* Bot readiness — the end-to-end checks that decide if the client's bot works */}
+      <Card className="mb-6">
+        <CardContent className="py-4">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-semibold">Bot readiness</p>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${readyCount === readiness.length ? 'bg-emerald-500/15 text-emerald-600' : 'bg-amber-500/15 text-amber-600'}`}>
+              {readyCount}/{readiness.length} ready
+            </span>
+          </div>
+          <ul className="space-y-2">
+            {readiness.map((c) => (
+              <li key={c.label} className="flex items-start gap-2.5 text-sm">
+                <span className="mt-0.5 shrink-0">
+                  {c.state === 'ok' ? <Check className="h-4 w-4 text-emerald-600" /> : c.state === 'warn' ? <AlertCircle className="h-4 w-4 text-amber-500" /> : <X className="h-4 w-4 text-destructive" />}
+                </span>
+                <div>
+                  <span className={c.state === 'ok' ? 'font-medium' : 'font-medium text-foreground'}>{c.label}</span>
+                  <span className="text-muted-foreground"> — {c.hint}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {readyCount < readiness.length && (
+            <p className="mt-3 text-xs text-muted-foreground">Fix the red/amber items above to get the bot live. New client? See the onboarding guide in the repo.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Summary */}
       <div className="mb-6 grid gap-3 sm:grid-cols-4">
