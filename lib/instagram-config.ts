@@ -34,25 +34,28 @@ export async function getInstagramApp(admin: Admin, workspaceId: string): Promis
 
 export type IgMode = 'workspace' | 'platform' | 'none'
 
+/** Public app URL for portal-displayed URLs. Falls back to the prod domain when the env is unset. */
+const PUBLIC_BASE = (process.env.NEXT_PUBLIC_APP_URL || 'https://social-media.aiagentixdev.com').replace(/\/$/, '')
+
 /** Public (no-secret) setup info to render in the client portal. */
 export async function getInstagramSetup(admin: Admin, workspaceId: string): Promise<{
-  mode: IgMode; configured: boolean; appId: string; verifyToken: string; callbackUrl: string; platformAvailable: boolean
+  mode: IgMode; configured: boolean; appId: string; verifyToken: string; callbackUrl: string; oauthRedirectUri: string; platformAvailable: boolean
 }> {
   const { data } = await admin.from('workspaces').select('settings').eq('id', workspaceId).maybeSingle()
   const cfg = (data?.settings as { instagram_app?: StoredApp } | null)?.instagram_app ?? {}
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
-  const wsCallback = `${base}/api/webhooks/instagram/${workspaceId}`
+  const wsCallback = `${PUBLIC_BASE}/api/webhooks/instagram/${workspaceId}`
+  const oauthRedirectUri = `${PUBLIC_BASE}/api/integrations/instagram/callback`
   const platformAvailable = !!(process.env.INSTAGRAM_APP_ID && process.env.INSTAGRAM_APP_SECRET)
 
   // Client's own app takes precedence.
   if (cfg.app_id && cfg.app_secret_enc) {
-    return { mode: 'workspace', configured: true, appId: cfg.app_id, verifyToken: cfg.verify_token ?? '', callbackUrl: wsCallback, platformAvailable }
+    return { mode: 'workspace', configured: true, appId: cfg.app_id, verifyToken: cfg.verify_token ?? '', callbackUrl: wsCallback, oauthRedirectUri, platformAvailable }
   }
   // Platform-wide central app (operator configures the webhook once).
   if (platformAvailable) {
-    return { mode: 'platform', configured: true, appId: process.env.INSTAGRAM_APP_ID!, verifyToken: '', callbackUrl: '', platformAvailable }
+    return { mode: 'platform', configured: true, appId: process.env.INSTAGRAM_APP_ID!, verifyToken: '', callbackUrl: '', oauthRedirectUri, platformAvailable }
   }
-  return { mode: 'none', configured: false, appId: '', verifyToken: '', callbackUrl: wsCallback, platformAvailable }
+  return { mode: 'none', configured: false, appId: '', verifyToken: '', callbackUrl: wsCallback, oauthRedirectUri, platformAvailable }
 }
 
 /** Remove the workspace's own Instagram app credentials (fall back to the central app). */

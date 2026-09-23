@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-interface Setup { mode: 'workspace' | 'platform' | 'none'; configured: boolean; appId: string; verifyToken: string; callbackUrl: string; platformAvailable: boolean }
+interface Setup { mode: 'workspace' | 'platform' | 'none'; configured: boolean; appId: string; verifyToken: string; callbackUrl: string; oauthRedirectUri: string; platformAvailable: boolean }
 interface Conn { id: string; handle: string | null; display_name: string | null }
 
 function Copyable({ label, value }: { label: string; value: string }) {
@@ -99,15 +99,8 @@ export function InstagramChannel({ conn, setup }: { conn: Conn | null; setup: Se
         </div>
       )}
 
-      {/* Webhook config values — always shown once configured */}
-      {cfg.configured && (
-        <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
-          <p className="text-xs font-semibold">Paste these into your Meta app → Instagram → Configure webhooks</p>
-          <Copyable label="Callback URL" value={cfg.callbackUrl} />
-          <Copyable label="Verify token" value={cfg.verifyToken} />
-          <p className="text-[11px] text-muted-foreground">Subscribe fields: messages, messaging_postbacks, comments.</p>
-        </div>
-      )}
+      {/* Full A-to-Z setup steps + exact values — shown once credentials are saved */}
+      {cfg.configured && !conn && <CompleteSetup cfg={cfg} />}
 
       {/* Connect / connected */}
       {conn ? (
@@ -115,7 +108,7 @@ export function InstagramChannel({ conn, setup }: { conn: Conn | null; setup: Se
       ) : cfg.configured ? (
         <ConnectStep />
       ) : (
-        <p className="text-xs text-muted-foreground">Save your App ID & Secret above to enable connecting.</p>
+        <p className="text-xs text-muted-foreground">Save your App ID &amp; Secret above to enable connecting.</p>
       )}
     </div>
   )
@@ -184,6 +177,41 @@ function AppForm({ setup, onSaved, onCancel }: { setup: Setup; onSaved: (s: Setu
         {onCancel && <Button type="button" variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>}
       </div>
     </form>
+  )
+}
+
+/** A-to-Z Meta setup steps with exact copy-paste values. Shown once creds are saved. */
+function CompleteSetup({ cfg }: { cfg: Setup }) {
+  return (
+    <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3.5">
+      <p className="text-sm font-semibold">Finish setup in your Meta app (4 steps)</p>
+
+      <div className="space-y-1">
+        <p className="text-xs font-semibold text-foreground">1. Add your Instagram account as a Tester</p>
+        <ul className="ml-1 list-disc space-y-0.5 pl-4 text-[11px] text-muted-foreground">
+          <li>Meta app → <b>App roles → Roles → Instagram testers → Add</b> → your Instagram @username.</li>
+          <li>Then in your Instagram <b>MOBILE app</b>: Settings → <b>Apps and websites → Tester Invites → Accept</b>. <span className="text-amber-600">(The invite only shows in the mobile app, not on web.)</span></li>
+          <li className="text-amber-600">Required while the app is in Standard Access — without accepting, the connection won&apos;t work.</li>
+        </ul>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-xs font-semibold text-foreground">2. Configure webhooks <span className="font-normal text-muted-foreground">(Instagram → Configure webhooks)</span></p>
+        <Copyable label="Callback URL" value={cfg.callbackUrl} />
+        <Copyable label="Verify token" value={cfg.verifyToken} />
+        <p className="text-[11px] text-muted-foreground">Subscribe fields: <b>messages, messaging_postbacks, comments</b> → click <b>Verify and save</b>.</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-xs font-semibold text-foreground">3. OAuth redirect URI <span className="font-normal text-muted-foreground">(Business login settings → OAuth redirect URIs)</span></p>
+        <Copyable label="OAuth redirect URI" value={cfg.oauthRedirectUri} />
+      </div>
+
+      <div className="space-y-0.5">
+        <p className="text-xs font-semibold text-foreground">4. Connect</p>
+        <p className="text-[11px] text-muted-foreground">Click <b>Connect with Instagram</b> below and authorize with the same account. You&apos;re done ✅</p>
+      </div>
+    </div>
   )
 }
 
