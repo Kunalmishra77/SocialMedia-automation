@@ -23,6 +23,16 @@ Copy each block below into the matching field in Meta:
 
 ---
 
+## ⚠️ Why the earlier submission was REJECTED (fix this)
+
+The previous Skinwise submission pasted the SAME "We read comments…" text into
+almost every permission (messages, content_publish, insights). Meta requires each
+permission's description to match THAT permission's actual use. Using the wrong
+description = automatic rejection. Use the exact per-permission text below — each
+one is different. Only request permissions the app actually uses.
+
+---
+
 ## 1. App overview (use in the "How your app uses..." intro)
 
 AI-Agentix SocialFlow is a business messaging and content-management platform for small
@@ -113,6 +123,38 @@ business created and approved, to their own account.
 2. Go to Content → create a post, attach an image and a caption.
 3. Either schedule it or use "Publish now".
 4. The post appears on the connected test Instagram account's profile.
+
+---
+
+## 5b. instagram_business_manage_insights (ONLY request if you actually show IG insights)
+
+Our app does not currently read Instagram Insights — it computes its own message/
+reply counts internally. **Recommendation: do NOT request this permission** (remove
+it from the submission), or Meta may reject for requesting an unused permission.
+
+If you DO add analytics later, the honest description would be:
+"With the business owner's consent we read insights for their own professional
+account (reach, engagement, message/reply counts) and display them in the
+business's analytics dashboard so they can measure their automation's performance.
+Only the connected account's own insights are accessed."
+
+---
+
+## 5c. Human Agent (keep — the app has a human inbox)
+
+**How your app uses this feature:**
+Our app is a shared team inbox. In addition to AI replies, a human agent from the
+business can take over any conversation and reply to the customer. When a reply is
+sent by a human more than 24 hours after the customer's last message (for example
+the business was closed), we send it using the human_agent tag, within the 7-day
+window, so the business can still help the customer. This is used only for the
+business's own conversations, by the business's own team.
+
+**Step-by-step for the reviewer:**
+1. Log in and connect the test account (section 2).
+2. From a second account, DM the connected account.
+3. In the app's Inbox, open the conversation and send a reply as a human agent
+   (pause the bot / take over). The reply is delivered to the customer on Instagram.
 
 ---
 
