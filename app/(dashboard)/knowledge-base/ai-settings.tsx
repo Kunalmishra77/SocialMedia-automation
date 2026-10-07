@@ -75,13 +75,9 @@ export function AiSettings({
           <input type="checkbox" name="follow_gate" defaultChecked={followGate} />
           Follow-gate — require users to follow before continuing
         </label>
-        <label className="flex items-start gap-2 pl-6 text-sm">
-          <input type="checkbox" name="follow_gate_strict" defaultChecked={followGateStrict} className="mt-1" />
-          <span>
-            Strict verify — only let users through when Instagram <b>confirms</b> the follow (a tap alone won’t pass).
-            <span className="mt-0.5 block text-xs text-amber-600">Needs Meta “Advanced Access”. Without it, Instagram can’t confirm follows and no one will pass — keep this OFF until Advanced Access is approved.</span>
-          </span>
-        </label>
+        {/* Strict follow-gate verify is hidden: without Meta Advanced Access it blocks
+            everyone, and enabling it by mistake kept breaking onboarding. It stays off
+            (stored as false) until Advanced Access is approved, then we re-expose it. */}
         <div>
           <Label htmlFor="follow_gate_message" className="text-xs text-muted-foreground">
             Follow-gate message
