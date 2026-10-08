@@ -11,6 +11,8 @@ export const IG_SCOPES = [
   'instagram_business_manage_messages',
   'instagram_business_manage_comments',
   'instagram_business_content_publish',
+  // Post Audit reach/saves/shares. Opt-in: only add once Meta has approved it for the app.
+  ...(process.env.IG_ENABLE_INSIGHTS === '1' ? ['instagram_business_manage_insights'] : []),
 ].join(',')
 
 export const IG_CAPS = {
@@ -306,6 +308,120 @@ export async function igLongLivedToken(shortToken: string, appSecret: string): P
     const d = await res.json()
     if (!d.access_token) return null
     return { token: d.access_token, expiresIn: d.expires_in ?? 5_184_000 }
+  } catch {
+    return null
+  }
+}
+
+// ── Content intelligence: own profile, own media, per-post insights ──────────
+
+export interface IgOwnProfile {
+  username: string | null
+  name: string | null
+  biography: string | null
+  website: string | null
+  profile_picture_url: string | null
+  followers_count: number | null
+  follows_count: number | null
+  media_count: number | null
+}
+
+/** The connected account's public profile fields (instagram_business_basic). */
+export async function fetchIgOwnProfile(token: string): Promise<IgOwnProfile | null> {
+  try {
+    const url = new URL(`${IG}/me`)
+    url.searchParams.set('fields', 'username,name,biography,website,profile_picture_url,followers_count,follows_count,media_count')
+    url.searchParams.set('access_token', token.trim())
+    const res = await fetch(url.toString(), { cache: 'no-store' })
+    if (!res.ok) return null
+    const d = await res.json()
+    return {
+      username: d.username ?? null,
+      name: d.name ?? null,
+      biography: d.biography ?? null,
+      website: d.website ?? null,
+      profile_picture_url: d.profile_picture_url ?? null,
+      followers_count: d.followers_count ?? null,
+      follows_count: d.follows_count ?? null,
+      media_count: d.media_count ?? null,
+    }
+  } catch {
+    return null
+  }
+}
+
+export interface IgMediaItem {
+  id: string
+  caption: string
+  media_type: string          // IMAGE | VIDEO | CAROUSEL_ALBUM
+  media_product_type: string  // FEED | REELS | STORY
+  permalink: string | null
+  thumbnail_url: string | null
+  media_url: string | null
+  timestamp: string
+  like_count: number
+  comments_count: number
+}
+
+/** The account's most recent posts (up to `limit`, paged), newest first. */
+export async function fetchIgMedia(token: string, limit = 50): Promise<IgMediaItem[]> {
+  const out: IgMediaItem[] = []
+  let next: string | null = (() => {
+    const url = new URL(`${IG}/me/media`)
+    url.searchParams.set('fields', 'id,caption,media_type,media_product_type,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count')
+    url.searchParams.set('limit', String(Math.min(limit, 50)))
+    url.searchParams.set('access_token', token.trim())
+    return url.toString()
+  })()
+  try {
+    while (next && out.length < limit) {
+      const res: Response = await fetch(next, { cache: 'no-store' })
+      if (!res.ok) break
+      const d = await res.json()
+      for (const m of (d.data ?? []) as Record<string, unknown>[]) {
+        out.push({
+          id: String(m.id),
+          caption: String(m.caption ?? ''),
+          media_type: String(m.media_type ?? ''),
+          media_product_type: String(m.media_product_type ?? ''),
+          permalink: (m.permalink as string) ?? null,
+          thumbnail_url: (m.thumbnail_url as string) ?? null,
+          media_url: (m.media_url as string) ?? null,
+          timestamp: String(m.timestamp ?? ''),
+          like_count: Number(m.like_count ?? 0),
+          comments_count: Number(m.comments_count ?? 0),
+        })
+      }
+      next = (d.paging?.next as string | undefined) ?? null
+    }
+  } catch {
+    /* return what we have */
+  }
+  return out.slice(0, limit)
+}
+
+export interface IgMediaInsights { reach?: number; views?: number; saved?: number; shares?: number; total_interactions?: number }
+
+/**
+ * Per-post insights. Needs the instagram_business_manage_insights permission,
+ * which is opt-in (IG_ENABLE_INSIGHTS) because adding an unapproved scope to the
+ * login dialog breaks connect for non-tester accounts. Returns null when the
+ * token lacks it, so callers can fall back to likes + comments.
+ */
+export async function fetchIgMediaInsights(token: string, mediaId: string): Promise<IgMediaInsights | null> {
+  try {
+    const url = new URL(`${IG}/${mediaId}/insights`)
+    url.searchParams.set('metric', 'reach,views,saved,shares,total_interactions')
+    url.searchParams.set('access_token', token.trim())
+    const res = await fetch(url.toString(), { cache: 'no-store' })
+    if (!res.ok) return null
+    const d = await res.json()
+    const out: IgMediaInsights = {}
+    for (const row of (d.data ?? []) as { name: keyof IgMediaInsights; values?: { value: number }[]; total_value?: { value: number } }[]) {
+      const v = row.total_value?.value ?? row.values?.[0]?.value
+      if (typeof v === 'number') out[row.name] = v
+    }
+    return out
   } catch {
     return null
   }

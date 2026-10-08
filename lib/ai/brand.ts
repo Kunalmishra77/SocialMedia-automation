@@ -1,6 +1,7 @@
 import 'server-only'
 
 import type { createAdminClient } from '@/lib/supabase/admin'
+import { voiceBlock } from '@/lib/ig/playbook'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -31,6 +32,13 @@ export interface BrandProfile {
   theme: string              // 'bold' | 'minimal' | 'dark' | 'playful'
   imagery_style: string      // e.g. 'real photo' | '3d render' | 'illustration' | 'abstract gradient'
   product_images: string[]   // real product photos → used as inputs so AI shows the actual products
+  // ── Voice (Instagram playbook — how the brand actually talks) ──
+  never_say: string[]        // words/phrases the brand never uses
+  sample_posts: string       // 2-3 real captions/scripts, the strongest voice signal there is
+  positions: string          // beliefs some of the audience disagrees with — where good hooks come from
+  proof_points: string       // real numbers/outcomes the AI MAY use; nothing else gets invented
+  keyword_cta: string        // one-word comment keyword, e.g. GUIDE
+  on_camera: string          // e.g. 'fast and funny', 'calm expert', 'faceless voiceover'
 }
 
 const EMPTY: BrandProfile = {
@@ -39,6 +47,7 @@ const EMPTY: BrandProfile = {
   topics_avoid: [], default_cta: '', competitors: '', objectives: '',
   brand_colors: [], logo_url: '',
   website: '', phone: '', handle: '', theme: 'bold', imagery_style: 'real photo', product_images: [],
+  never_say: [], sample_posts: '', positions: '', proof_points: '', keyword_cta: '', on_camera: '',
 }
 
 /** Merge the workspace columns + settings.brand_profile into a full profile. */
@@ -70,6 +79,12 @@ export async function getBrandProfile(admin: Admin, workspaceId: string): Promis
     theme: bp.theme || 'bold',
     imagery_style: bp.imagery_style || 'real photo',
     product_images: bp.product_images ?? [],
+    never_say: bp.never_say ?? [],
+    sample_posts: bp.sample_posts || '',
+    positions: bp.positions || '',
+    proof_points: bp.proof_points || '',
+    keyword_cta: bp.keyword_cta || '',
+    on_camera: bp.on_camera || '',
   }
 }
 
@@ -94,5 +109,7 @@ export function buildBrandBlock(b: BrandProfile): string {
   if (b.theme) lines.push(`Visual theme: ${b.theme}.`)
   if (b.imagery_style) lines.push(`Preferred imagery style: ${b.imagery_style}.`)
   lines.push(`Write all content in ${b.language}.`)
+  const voice = voiceBlock(b)
+  if (voice) lines.push(voice)
   return lines.join('\n')
 }

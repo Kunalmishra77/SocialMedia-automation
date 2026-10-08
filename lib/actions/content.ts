@@ -5,7 +5,10 @@ import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser, getActiveMembership } from '@/lib/authz'
 import { callAI, aiConfigured } from '@/lib/ai/client'
-import { getBrandProfile } from '@/lib/ai/brand'
+import { getBrandProfile, buildBrandBlock } from '@/lib/ai/brand'
+import { captionRules, NEVER_FABRICATE, PLAIN_LANGUAGE } from '@/lib/ig/playbook'
+import { polishCopy, polishTags } from '@/lib/ig/polish'
+import { cleanHashtags } from '@/lib/ig/compose'
 import { generateContent, generateDesign, expandPoster, describeReference, type PlatformVariants, type PostDesign } from '@/lib/ai/content-gen'
 import { generatePostImage, generateHeroImage, generatePoster, generatePosterWithAssets } from '@/lib/ai/image-gen'
 import { retrieveKbContext } from '@/lib/ai/reply'
@@ -88,24 +91,38 @@ export async function createPostAction(formData: FormData): Promise<{ error?: st
 export async function generateCaptionAction(
   topic: string,
   tone: string,
+  postType = 'feed',
 ): Promise<{ caption?: string; hashtags?: string; error?: string }> {
-  await ctx()
+  const { workspaceId } = await ctx()
   if (!aiConfigured()) return { error: 'Add an OpenAI/OpenRouter key to enable AI generation.' }
   const t = topic.trim()
   if (!t) return { error: 'Enter a topic or idea' }
+  const admin = createAdminClient()
+  const quotaErr = await requireAiQuota(admin, workspaceId)
+  if (quotaErr) return { error: quotaErr }
+  const brand = await getBrandProfile(admin, workspaceId)
 
+  // A Reel carries its own hook in the video, so its caption does a different job.
+  const job = postType === 'reel' ? 'A' : 'B'
   const out = await callAI(
-    [{
-      role: 'user',
-      content: `Write an Instagram caption for this: "${t}". Tone: ${tone || 'friendly'}. Keep it under 60 words, engaging, with 1-2 emojis. Then on a new line starting with "HASHTAGS:" give 8 relevant hashtags space-separated.`,
-    }],
-    { maxTokens: 220, temperature: 0.8 },
+    [
+      {
+        role: 'system',
+        content: [`You write Instagram captions for this brand.\n${buildBrandBlock(brand)}`, captionRules(job), NEVER_FABRICATE, PLAIN_LANGUAGE].join('\n\n'),
+      },
+      {
+        role: 'user',
+        content: `Write the caption for this ${postType === 'reel' ? 'Reel' : postType} about: "${t}". Tone: ${tone || brand.brand_voice || 'friendly'}. Then on a new line starting with "HASHTAGS:" give 3 to 5 specific hashtags space-separated.`,
+      },
+    ],
+    { maxTokens: 450, temperature: 0.75 },
   )
   if (!out) return { error: 'Generation failed, try again.' }
+  await logUsage(admin, workspaceId, 'ai_generate', 1, { kind: 'caption' })
   const parts = out.split(/HASHTAGS:/i)
   return {
-    caption: parts[0].trim(),
-    hashtags: (parts[1] ?? '').trim().replace(/^#/, ''),
+    caption: polishCopy(parts[0]),
+    hashtags: polishTags(cleanHashtags(parts[1] ?? '')).map((h) => `#${h}`).join(' '),
   }
 }
 

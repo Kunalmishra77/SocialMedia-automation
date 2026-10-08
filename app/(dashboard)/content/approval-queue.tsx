@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Loader2, CalendarClock, Check, X, Wand2 } from 'lucide-react'
 import { approvePostAction, rejectPostAction } from '@/lib/actions/content'
 import { Button } from '@/components/ui/button'
+import { CaptionCoach } from '@/components/content/caption-coach'
 
 export interface PendingPost {
   id: string
@@ -76,6 +77,7 @@ function ApprovalCard({ post }: { post: PendingPost }) {
         </div>
       </div>
       <div className="space-y-2 border-t border-border p-3">
+        {post.caption && <CaptionCoach caption={post.caption} />}
         <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className={`${area} h-9`} />
         {err && <p className="text-xs text-destructive">{err}</p>}
         <div className="flex flex-wrap gap-1.5">

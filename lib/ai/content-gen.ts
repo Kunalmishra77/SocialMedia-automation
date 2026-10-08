@@ -2,6 +2,8 @@ import 'server-only'
 
 import { callAI, callVision, aiConfigured } from '@/lib/ai/client'
 import { buildBrandBlock, type BrandProfile } from '@/lib/ai/brand'
+import { captionRules, NEVER_FABRICATE, PLAIN_LANGUAGE } from '@/lib/ig/playbook'
+import { polishCopy, polishTags } from '@/lib/ig/polish'
 
 /** A single platform's generated copy. Uniform shape across platforms so the
  *  UI and publisher can treat them the same. `caption` holds the main body
@@ -24,7 +26,9 @@ export interface GeneratedContent {
 /** Per-platform authoring guidance the model adapts the same idea to. */
 const PLATFORM_SPECS: Record<string, string> = {
   instagram:
-    'Instagram feed post. Caption under 125 words, warm and engaging, 1-3 tasteful emojis, hook in the first line. Provide 8-15 relevant hashtags (no # prefix). Optionally a "first_comment" with extra hashtags or a question.',
+    `Instagram feed post (the caption carries the post).
+${captionRules('B')}
+The caption must END with its one call to action; repeat that CTA in "cta". Give 3-5 hashtags (no # prefix) in "hashtags", NOT inside the caption. Optionally a "first_comment" with a question that invites replies (no hashtags).`,
   facebook:
     'Facebook post. Longer, more conversational caption (up to ~200 words), storytelling tone, 0-3 hashtags.',
   linkedin:
@@ -76,6 +80,8 @@ export async function generateContent(opts: {
   const system = [
     'You are an expert social media copywriter and brand strategist.',
     'Create original, on-brand, factual social content. Never invent prices, discounts, medical claims, or policies that were not provided.',
+    NEVER_FABRICATE,
+    PLAIN_LANGUAGE,
     '',
     'BRAND PROFILE:',
     buildBrandBlock(opts.brand),
@@ -113,13 +119,14 @@ export async function generateContent(opts: {
   for (const p of platforms) {
     const v = parsed.variants[p]
     if (!v) continue
-    const caption = String(v.caption ?? '').trim()
+    // Strip AI tells (em dashes, stock phrases, invisible chars) before anyone sees it.
+    const caption = polishCopy(String(v.caption ?? ''))
     if (!caption) continue
     variants[p] = {
       caption,
-      hashtags: asStringArray(v.hashtags),
-      cta: String(v.cta ?? '').trim(),
-      ...(v.first_comment ? { first_comment: String(v.first_comment).trim() } : {}),
+      hashtags: polishTags(asStringArray(v.hashtags), p),
+      cta: polishCopy(String(v.cta ?? '')),
+      ...(v.first_comment ? { first_comment: polishCopy(String(v.first_comment)) } : {}),
     }
   }
   if (!Object.keys(variants).length) return null
@@ -168,7 +175,7 @@ export async function generateDesign(opts: { brand: BrandProfile; brief: string;
     '  "subtext": "one supporting sentence, sentence case, under 14 words",',
     '  "cards": ["4 short 2-4 word labels that support the topic (e.g. tasks, tips, benefits) — ALL CAPS"],',
     `  "icons": ["4 icon names, one matching each card, chosen ONLY from: ${ICON_NAMES.join(', ')}"],`,
-    '  "hashtags": ["8-12 relevant hashtags for this post, no # prefix"],',
+    '  "hashtags": ["3-5 specific topic hashtags, no # prefix (Instagram allows max 5)"],',
     '  "cta": "a short closing line or call-to-action, under 12 words",',
     `  "layout": "choose the BEST layout for THIS content — one of: ${LAYOUTS.join(', ')}. Use 'bullets' for a value/benefit list with a CTA, 'cards' for 4 parallel items/tips, 'receipt' for a cost/statement/list framed as a card, 'split' for one strong statement with a framed photo, 'hero' for a bold single message with a full photo.",`,
     `  "heroPrompt": "a detailed prompt for a hero image in the brand's imagery style (${opts.brand.imagery_style || 'real photo'}) relevant to the topic — describe subject, setting, lighting, mood, composition; professional, high quality; NO text, NO words, NO logos in the image"`,
@@ -184,7 +191,7 @@ export async function generateDesign(opts: { brand: BrandProfile; brief: string;
     const v = Array.isArray(p.icons) ? String(p.icons[i] ?? '').toLowerCase().trim() : ''
     return ICON_NAMES.includes(v) ? v : fallbackIcons[i]
   })
-  const hashtags = Array.isArray(p.hashtags) ? p.hashtags.map((h) => String(h).replace(/^#/, '').trim()).filter(Boolean).slice(0, 15) : []
+  const hashtags = Array.isArray(p.hashtags) ? p.hashtags.map((h) => String(h).replace(/^#/, '').trim()).filter(Boolean).slice(0, 5) : []
   const layout = LAYOUTS.includes(String(p.layout)) ? String(p.layout) : 'hero'
   return {
     icons,
@@ -284,7 +291,7 @@ export async function expandPoster(opts: { brand: BrandProfile; brief: string; k
     '  "subject": "the main photorealistic subject/scene (or empty if the poster is purely typographic)",',
     '  "products": "product display only if the brand sells physical products AND it suits this message, else empty",',
     '  "caption": "engaging Instagram caption, 2-4 short lines",',
-    '  "hashtags": ["8-12 relevant hashtags, no # prefix"]',
+    '  "hashtags": ["3-5 specific topic hashtags, no # prefix (Instagram allows max 5)"]',
     '}',
     'Pick the style that makes the STRONGEST premium poster for this exact message — different topics should look different.',
   ].filter(Boolean).join('\n')
@@ -301,8 +308,8 @@ export async function expandPoster(opts: { brand: BrandProfile; brief: string; k
     cta: String(p.cta ?? '').slice(0, 40),
     subject: String(p.subject ?? '').slice(0, 600),
     products: String(p.products ?? '').slice(0, 400),
-    caption: String(p.caption ?? opts.brief).slice(0, 600),
-    hashtags: Array.isArray(p.hashtags) ? p.hashtags.map((h) => String(h).replace(/^#/, '').trim()).filter(Boolean).slice(0, 15) : [],
+    caption: polishCopy(String(p.caption ?? opts.brief)).slice(0, 600),
+    hashtags: Array.isArray(p.hashtags) ? p.hashtags.map((h) => String(h).replace(/^#/, '').trim()).filter(Boolean).slice(0, 5) : [],
   }
   return { imagePrompt: buildPosterPrompt(b, spec, opts.shape ?? 'portrait', opts.referenceStyle), caption: spec.caption, hashtags: spec.hashtags, spec }
 }

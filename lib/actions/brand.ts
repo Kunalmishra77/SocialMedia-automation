@@ -74,6 +74,12 @@ export async function updateBrandProfileAction(formData: FormData): Promise<{ ok
     theme: String(formData.get('theme') ?? 'bold').trim() || 'bold',
     imagery_style: String(formData.get('imagery_style') ?? 'real photo').trim() || 'real photo',
     product_images: productImages,
+    never_say: csv(formData.get('never_say')),
+    sample_posts: String(formData.get('sample_posts') ?? '').trim().slice(0, 4000),
+    positions: String(formData.get('positions') ?? '').trim(),
+    proof_points: String(formData.get('proof_points') ?? '').trim(),
+    keyword_cta: String(formData.get('keyword_cta') ?? '').replace(/[^\p{L}\p{N}]/gu, '').toUpperCase().slice(0, 24),
+    on_camera: String(formData.get('on_camera') ?? '').trim(),
   }
 
   const settings = { ...((ws?.settings ?? {}) as Record<string, unknown>), brand_profile: profile }

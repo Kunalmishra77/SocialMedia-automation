@@ -7,12 +7,14 @@ import { createPostAction, generateCaptionAction } from '@/lib/actions/content'
 import { PLATFORMS } from '@/lib/platforms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { CaptionCoach } from '@/components/content/caption-coach'
 
 export function CreatePost() {
   const [open, setOpen] = useState(false)
   const [caption, setCaption] = useState('')
   const [hashtags, setHashtags] = useState('')
   const [topic, setTopic] = useState('')
+  const [postType, setPostType] = useState('feed')
   const [genBusy, setGenBusy] = useState(false)
   const [genErr, setGenErr] = useState('')
   const [state, formAction, pending] = useActionState<{ error?: string }, FormData>(
@@ -34,7 +36,7 @@ export function CreatePost() {
   async function generate() {
     setGenErr(''); setGenBusy(true)
     try {
-      const res = await generateCaptionAction(topic, 'friendly')
+      const res = await generateCaptionAction(topic, '', postType)
       if (res.error) setGenErr(res.error)
       else { setCaption(res.caption ?? ''); setHashtags(res.hashtags ?? '') }
     } finally { setGenBusy(false) }
@@ -45,7 +47,7 @@ export function CreatePost() {
   return (
     <form action={formAction} className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
       <div className="grid gap-3 sm:grid-cols-2">
-        <select name="type" defaultValue="feed" className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+        <select name="type" value={postType} onChange={(e) => setPostType(e.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
           <option value="feed">Feed post</option>
           <option value="reel">Reel</option>
           <option value="carousel">Carousel</option>
@@ -86,7 +88,8 @@ export function CreatePost() {
       </div>
 
       <textarea name="caption" rows={4} required value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Write your caption…" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-      <Input name="hashtags" value={hashtags} onChange={(e) => setHashtags(e.target.value)} placeholder="#hashtags space or comma separated" />
+      <Input name="hashtags" value={hashtags} onChange={(e) => setHashtags(e.target.value)} placeholder="Up to 5 #hashtags (Instagram's limit)" />
+      <CaptionCoach caption={caption} hashtags={hashtags} onApply={setCaption} />
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>{pending ? 'Saving…' : 'Save post'}</Button>

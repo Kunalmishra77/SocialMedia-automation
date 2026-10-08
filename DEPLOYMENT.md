@@ -12,7 +12,8 @@ From your machine (or CI), with `DATABASE_URL` set to the **transaction pooler**
 ```
 npm run db:migrate
 ```
-This applies `0001`–`0007` idempotently.
+This applies every file in `supabase/migrations` (`0001`–`0025`) that hasn't run yet, idempotently.
+`0025_content_intelligence.sql` is required for Reel Studio scripts and Profile Score history.
 
 ## 3. Coolify setup
 1. New Resource → **Docker (Dockerfile)** → point at this repo/branch.
@@ -48,6 +49,14 @@ META_VERIFY_TOKEN=socialflow_verify
 In the Meta app dashboard set:
 - OAuth redirect: `https://app.yourdomain.com/api/integrations/instagram/callback`
 - Webhook callback: `https://app.yourdomain.com/api/webhooks/instagram` (verify token = `META_VERIFY_TOKEN`)
+
+**Instagram insights (optional — Post Audit reach / saves / shares)**
+```
+IG_ENABLE_INSIGHTS=1   # adds instagram_business_manage_insights to the IG login scopes
+```
+Only set this once Meta has approved that permission for the app (App Review → Advanced
+Access), otherwise the connect dialog fails for non-tester accounts. Existing accounts must
+reconnect to grant it. Without it, Post Audit ranks posts on likes + comments.
 
 **Email invites (optional)**
 ```

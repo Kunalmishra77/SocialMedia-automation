@@ -41,6 +41,7 @@
 | [26-future-platforms.md](26-future-platforms.md) | Multi-channel extension: LinkedIn, Telegram, Email, X | Future |
 | [27-platform-admin.md](27-platform-admin.md) | Platform super-admin panel: workspaces, billing, impersonation, flags, audit | Add-on |
 | [28-multi-channel-automation.md](28-multi-channel-automation.md) | Channel adapter pattern: FB, Telegram, LinkedIn, YouTube, X, TikTok, Pinterest | Add-on |
+| [29-content-intelligence.md](29-content-intelligence.md) | Instagram playbook: caption linter, humanizer, hook scorer, Reel Studio, Profile Score, Post Audit | Add-on |
 
 ---
 

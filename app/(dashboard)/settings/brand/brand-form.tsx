@@ -77,6 +77,43 @@ export function BrandForm({ profile }: { profile: BrandProfile }) {
         </div>
       </div>
 
+      <fieldset className="space-y-4 rounded-lg border border-border p-4">
+        <legend className="px-1 text-sm font-semibold">Voice <span className="font-normal text-muted-foreground">· how you actually talk (makes captions & reel scripts sound like you)</span></legend>
+        <div className="space-y-2">
+          <Label htmlFor="sample_posts">2-3 of your best real captions or reel scripts</Label>
+          <textarea id="sample_posts" name="sample_posts" rows={5} defaultValue={profile.sample_posts} className={area}
+            placeholder="Paste real captions/scripts that sound most like you. This is the strongest voice signal the AI gets." />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="on_camera">On camera you are…</Label>
+            <Input id="on_camera" name="on_camera" defaultValue={profile.on_camera} placeholder="Calm expert · fast & funny · faceless voiceover" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="keyword_cta">Comment keyword CTA</Label>
+            <Input id="keyword_cta" name="keyword_cta" defaultValue={profile.keyword_cta} placeholder="GUIDE" />
+            <p className="text-xs text-muted-foreground">One sayable word. Pair it with a comment-to-DM automation.</p>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="positions">Your strong opinions</Label>
+            <textarea id="positions" name="positions" rows={3} defaultValue={profile.positions} className={area}
+              placeholder="Things you believe that some of your audience doesn't. The best hooks come from here." />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="proof_points">Real proof the AI may use</Label>
+            <textarea id="proof_points" name="proof_points" rows={3} defaultValue={profile.proof_points} className={area}
+              placeholder="12,000 orders shipped · 4.8★ from 900 reviews · founded 2019" />
+            <p className="text-xs text-muted-foreground">The AI never invents numbers. Without this, drafts use {'{{your number}}'} placeholders.</p>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="never_say">Words you never say</Label>
+          <Input id="never_say" name="never_say" defaultValue={profile.never_say.join(', ')} placeholder="hustle, guru, cheap, synergy" />
+        </div>
+      </fieldset>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="language">Preferred language</Label>

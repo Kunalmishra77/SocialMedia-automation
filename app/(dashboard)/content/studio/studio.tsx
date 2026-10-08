@@ -9,6 +9,7 @@ import {
 } from '@/lib/actions/content'
 import type { PlatformVariant } from '@/lib/ai/content-gen'
 import { Button } from '@/components/ui/button'
+import { CaptionCoach } from '@/components/content/caption-coach'
 
 const PLATFORMS = [
   { key: 'instagram', label: 'Instagram' },
@@ -203,6 +204,9 @@ export function Studio() {
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Hashtags</label>
                 <textarea value={v.hashtags.join(' ')} onChange={(e) => editVariant('hashtags', e.target.value)} rows={2} className={area} />
               </div>
+              {tab === 'instagram' && (
+                <CaptionCoach caption={v.caption} hashtags={v.hashtags} onApply={(next) => editVariant('caption', next)} defaultOpen />
+              )}
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Call-to-action</label>
                 <input value={v.cta ?? ''} onChange={(e) => editVariant('cta', e.target.value)} className={`${area} h-10`} />

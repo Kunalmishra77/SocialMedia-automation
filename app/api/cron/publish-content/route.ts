@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyInternalCronCall } from '@/lib/cron-auth'
 import { publishImage, publishReel } from '@/lib/channels/instagram'
 import { decryptToken } from '@/lib/crypto'
+import { composeIgCaption } from '@/lib/ig/compose'
 
 /** Publish due scheduled content posts via the connected Instagram account. */
 export async function GET(req: NextRequest) {
@@ -54,8 +55,8 @@ export async function GET(req: NextRequest) {
     // Prefer the Instagram-optimised AI variant; fall back to the base caption/hashtags.
     const igVariant = (post.platform_variants as { instagram?: { caption?: string; hashtags?: string[] } } | null)?.instagram
     const bodyText = igVariant?.caption || post.caption || ''
-    const tags = (igVariant?.hashtags ?? (post.hashtags as string[] | null) ?? []).map((h) => `#${h}`).join(' ')
-    const caption = [bodyText, tags].filter(Boolean).join('\n\n')
+    // Instagram rejects captions over 5 hashtags, so the cap is enforced here, at the last gate.
+    const caption = composeIgCaption(bodyText, igVariant?.hashtags ?? (post.hashtags as string[] | null) ?? [])
     const isVideo = post.type === 'reel' || /\.(mp4|mov|webm)(\?|$)/i.test(mediaUrl ?? '')
 
     if (!acctToken || !acct?.external_id) {
